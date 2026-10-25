@@ -1,0 +1,13 @@
+import unittest
+from pathlib import Path
+
+
+class WorkflowContractTests(unittest.TestCase):
+    def test_workflow_contains_review_gate_and_final_artifact(self):
+        workflow = Path('.github/workflows/test-srt-dashboard.yml').read_text(encoding='utf-8')
+        self.assertIn('inputs.approve == true', workflow)
+        self.assertIn('name: final-video', workflow)
+        self.assertIn('build/output.mp4', workflow)
+        self.assertIn('fetch-review:', workflow)
+        self.assertIn('needs: fetch-review', workflow)
+        self.assertIn('actions/download-artifact@v4', workflow)

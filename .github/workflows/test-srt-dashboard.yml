@@ -1,0 +1,80 @@
+name: Autonomous video pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      srt_path:
+        description: "Repository-relative SRT path"
+        required: true
+        default: "sample/test.srt"
+      audio_path:
+        description: "Optional repository-relative MP3 path"
+        required: false
+        default: ""
+      channel:
+        description: "Channel"
+        required: true
+        default: "ПЛАНЕТА"
+      approve:
+        description: "Run final render after review"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  storyboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - run: python -m assembler.cli "${{ inputs.srt_path }}" --channel "${{ inputs.channel }}" --output build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storyboard
+          path: build/
+
+  fetch-review:
+    needs: storyboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with: {name: storyboard, path: build}
+      - name: Fetch media candidates
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          FLICKR_API_KEY: ${{ secrets.FLICKR_API_KEY }}
+        run: python -m assembler.fetch_job --root build --limit 8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review
+          path: build/
+
+  render:
+    needs: fetch-review
+    if: ${{ inputs.approve == true }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with: {name: review, path: build}
+      - name: Self-check approved job
+        run: python -m assembler.selfcheck --root build
+      - name: Render approved video
+        run: python -m assembler.render --root build --output build/output.mp4 --audio "${{ inputs.audio_path }}" --captions
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-video
+          retention-days: 1
+          path: |
+            build/output.mp4
+            build/render_manifest.json

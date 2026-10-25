@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+build/
+*.mp4
+*.mp3
+images/
+videos/
+overlays/
+.banned_md5.json
+rejections.jsonl
+layout_journal.jsonl
+approval.json
