@@ -90,33 +90,35 @@ def search_web(query: str, limit: int = 8) -> list[dict]:
 
 
 def search_yandex(query: str, limit: int = 8) -> list[dict]:
-    """First web discovery pass; pages are not treated as licensed media."""
-    url = "https://yandex.com/search/?" + urlencode({"text": query})
+    """First pass: return direct image files from Yandex Images only."""
+    url = "https://yandex.com/images/search?" + urlencode({"text": query, "isize": "large"})
     data = urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
-    results = []
-    for match in re.finditer(r'href="(https?://[^" ]+)"[^>]*>.*?</a>', data, re.I | re.S):
-        link = unescape(match.group(1))
-        if "yandex." in link:
-            continue
-        results.append({"thumb": None, "full": link, "kind": "web", "src": "yandex", "title": link})
-        if len(results) >= limit:
-            break
-    return results
+    return _direct_image_results(data, "yandex", limit)
 
 
 def search_google(query: str, limit: int = 8) -> list[dict]:
-    """Second web discovery pass; pages are not treated as licensed media."""
-    url = "https://www.google.com/search?" + urlencode({"q": query, "num": limit})
+    """Second pass: return direct image files from Google Images only."""
+    url = "https://www.google.com/search?" + urlencode({"q": query, "tbm": "isch", "num": limit})
     data = urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
-    results = []
-    for match in re.finditer(r'<a href="(/url\?q=)?(https?://[^"&]+)[^>]*>', data, re.I):
-        link = unescape(match.group(2))
-        if "google." in link:
+    return _direct_image_results(data, "google", limit)
+
+
+def _direct_image_results(html: str, source: str, limit: int) -> list[dict]:
+    """Extract only plausible direct image URLs; article pages are discarded."""
+    found: list[dict] = []
+    seen: set[str] = set()
+    pattern = r'https?://[^"\\<>\s]+?\.(?:jpe?g|png|webp)(?:\?[^"\\<>\s]*)?'
+    for raw in re.findall(pattern, html, re.I):
+        link = unescape(raw).replace("\\u0026", "&")
+        if any(host in link.lower() for host in ("yandex.", "google.", "gstatic.", "googleusercontent.")):
             continue
-        results.append({"thumb": None, "full": link, "kind": "web", "src": "google", "title": link})
-        if len(results) >= limit:
+        if link in seen:
+            continue
+        seen.add(link)
+        found.append({"thumb": link, "full": link, "kind": "photo", "src": source})
+        if len(found) >= limit:
             break
-    return results
+    return found
 
 
 def search_sources(query: str, limit: int = 8) -> list[dict]:

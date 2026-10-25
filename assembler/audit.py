@@ -37,6 +37,10 @@ def audit_storyboard(root: Path) -> list[str]:
     heads = [" ".join(q.split()[:3]) for q in queries]
     if len(heads) != len(set(heads)):
         errors.append("duplicate first three query words")
+    object_heads = [" ".join(q.split()[:2]) for q in queries]
+    for head in set(object_heads):
+        if head and object_heads.count(head) > 3:
+            errors.append(f"one object requested on too many scenes: {head}")
     for scene in scenes:
         query = str(scene.get("source_query", "")).lower()
         narration = str(scene.get("text", "")).strip().lower()
