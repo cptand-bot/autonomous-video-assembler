@@ -23,3 +23,10 @@ class SelfcheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / "scenes.json").write_text(json.dumps({"scenes": [{"id": 1, "source": "card:quote"}]}), encoding="utf-8")
             self.assertEqual(check_job(root), [])
+
+    def test_failed_manifest_status_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root / "images").mkdir()
+            (root / "scenes.json").write_text(json.dumps({"scenes": [{"id": 1, "source": "press_photo"}]}), encoding="utf-8")
+            (root / "images/manifest.json").write_text(json.dumps({"1": {"path": "images/001.jpg", "status": "FAILED"}}), encoding="utf-8")
+            self.assertTrue(any("manifest status FAILED" in error for error in check_job(root)))

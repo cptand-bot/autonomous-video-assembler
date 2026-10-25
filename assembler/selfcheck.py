@@ -17,6 +17,9 @@ def check_job(root: Path) -> list[str]:
         if sid not in manifest:
             errors.append(f"scene {sid}: missing manifest entry")
             continue
+        if manifest[sid].get("status") in {"FAILED", "placeholder"}:
+            errors.append(f"scene {sid}: manifest status {manifest[sid].get('status')}")
+            continue
         path = root / manifest[sid].get("path", "")
         if not path.is_file(): errors.append(f"scene {sid}: missing file {path}")
     overlays_path = root / "overlays.json"

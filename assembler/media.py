@@ -42,10 +42,10 @@ def write_image(root: Path, sid: str, data: bytes, target: str = "scene", source
     path.write_bytes(data)
     digest = hashlib.md5(data).hexdigest()
     if target == "overlay":
-        return {"path": str(path.relative_to(root)).replace("\\", "/"), "md5": digest, "source": source, "target": target}
+        return {"path": str(path.relative_to(root)).replace("\\", "/"), "md5": digest, "source": source, "target": target, "status": "ok"}
     manifest_path = root / "images" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
-    manifest[str(sid)] = {"path": str(path.relative_to(root)).replace("\\", "/"), "md5": digest, "source": source, "target": target}
+    manifest[str(sid)] = {"path": str(path.relative_to(root)).replace("\\", "/"), "md5": digest, "source": source, "target": target, "status": "ok"}
     manifest_path.parent.mkdir(exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return manifest[str(sid)]
@@ -65,6 +65,6 @@ def download_video(url: str, root: Path, sid: str, source: str = "remote") -> di
     if duration <= 0:
         path.unlink(missing_ok=True); raise MediaError("video has no duration")
     manifest_path = root / "images" / "manifest.json"; manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
-    manifest[str(sid)] = {"path": str(path.relative_to(root)).replace("\\", "/"), "source": source, "kind": "video", "duration": duration}
+    manifest[str(sid)] = {"path": str(path.relative_to(root)).replace("\\", "/"), "source": source, "kind": "video", "duration": duration, "status": "ok"}
     manifest_path.parent.mkdir(exist_ok=True); manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return manifest[str(sid)]

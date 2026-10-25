@@ -67,7 +67,9 @@ class JobStore:
             item = {"id": scene["id"]}
             entry = manifest.get(sid, {})
             image = self.root / entry.get("path", f"images/{int(scene['id']):03d}.jpg")
-            if image.exists():
+            if entry.get("status") == "FAILED":
+                item["status"] = "failed"
+            elif image.exists():
                 source = entry.get("source", "press")
                 kind = manifest.get(sid, {}).get("kind", "photo")
                 item.update({"thumb": entry.get("thumb", f"images/{image.name}") if kind != "video" else entry.get("thumb"), "video": str(image.relative_to(self.root)).replace("\\", "/") if kind == "video" else None, "v": image.stat().st_mtime_ns, "badge": source, "badge_label": labels.get(source, source.upper()), "is_video": kind == "video"})
