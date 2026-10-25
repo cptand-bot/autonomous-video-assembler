@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 
-FORBIDDEN = {"сцена", "документальный кадр", "общий план"}
+FORBIDDEN = ("документальный кадр", "общий план")
 
 
 def audit_storyboard(root: Path) -> list[str]:
@@ -35,7 +35,7 @@ def audit_storyboard(root: Path) -> list[str]:
         errors.append("duplicate first three query words")
     for scene in scenes:
         query = str(scene.get("source_query", "")).lower()
-        if any(word in query for word in FORBIDDEN):
+        if any(word in query for word in FORBIDDEN) or re.search(r"\bсцена\s*\d+\b", query):
             errors.append(f"scene {scene.get('id')}: service wording in source_query")
     return errors
 
