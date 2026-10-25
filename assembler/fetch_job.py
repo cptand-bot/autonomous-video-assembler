@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 from .collectors import search_sources_detailed, search_pexels_video
@@ -31,6 +32,8 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
             for candidate in candidates:
                 url = candidate.get("full")
                 if not url or candidate.get("kind") == "web" or candidate.get("src") in {"yandex", "google"}:
+                    continue
+                if candidate.get("kind") == "photo" and not re.search(r"\.(?:jpe?g|png|webp)(?:\?|$)", url, re.I):
                     continue
                 if url in used_urls:
                     continue
