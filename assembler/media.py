@@ -21,9 +21,9 @@ def add_manifest_metadata(root: Path, sid: str, metadata: dict) -> None:
     manifest = json.loads(path.read_text(encoding="utf-8"))
     if str(sid) not in manifest:
         return
-    for key in ("license", "creator", "title"):
+    for key in ("license", "creator", "title", "full"):
         if metadata.get(key):
-            manifest[str(sid)][key] = metadata[key]
+            manifest[str(sid)]["url" if key == "full" else key] = metadata[key]
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 

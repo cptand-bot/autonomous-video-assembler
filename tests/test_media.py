@@ -42,6 +42,7 @@ class MediaTests(unittest.TestCase):
         buf = io.BytesIO(); image.save(buf, format="JPEG")
         with TemporaryDirectory() as directory:
             root = Path(directory); write_image(root, "1", buf.getvalue(), "scene", "openverse")
-            add_manifest_metadata(root, "1", {"license": "cc0", "creator": "Author"})
+            add_manifest_metadata(root, "1", {"license": "cc0", "creator": "Author", "full": "https://example.test/image.jpg"})
             manifest = __import__("json").loads((root / "images" / "manifest.json").read_text())
             self.assertEqual(manifest["1"]["license"], "cc0")
+            self.assertEqual(manifest["1"]["url"], "https://example.test/image.jpg")
