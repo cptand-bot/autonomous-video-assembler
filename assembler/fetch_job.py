@@ -14,7 +14,9 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     errors: list[dict] = []
     downloaded = 0
     manifest = root / "images" / "manifest.json"
-    for scene in payload.get("scenes", []):
+    scenes = payload.get("scenes", [])
+    total_scenes = len(scenes)
+    for position, scene in enumerate(scenes, start=1):
         sid = str(scene["id"])
         query = scene.get("source_query", "").strip()
         if not query or str(scene.get("source", "")).startswith("card:"):
@@ -43,6 +45,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                 current = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
                 current[sid] = {"status": "FAILED", "source": "none"}
                 manifest.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"PROGRESS {position}/{total_scenes} scene={sid} downloaded={downloaded}", flush=True)
     (root / "search_options.json").write_text(json.dumps(options, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "errors": errors}
     (root / "fetch_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
