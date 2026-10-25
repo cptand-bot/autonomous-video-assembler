@@ -14,7 +14,7 @@ def build_scenes(cues: list[Cue], channel: str) -> dict:
         current.append(cue)
         elapsed = current[-1].end - current[0].start
         remaining = len(cues) - sum(len(g) for g in groups) - len(current)
-        if (total <= 12 and len(current) == 1) or (len(groups) + 1 < target and elapsed >= 9 and remaining >= 1) or (len(groups) + 1 == target):
+        if (total <= 12 and len(current) == 1) or (elapsed >= 11.5 and remaining >= 1):
             groups.append(current); current = []
     if current:
         groups.append(current)

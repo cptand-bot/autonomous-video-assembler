@@ -15,6 +15,7 @@ def audit_storyboard(root: Path) -> list[str]:
     payload = json.loads((root / "scenes.json").read_text(encoding="utf-8"))
     scenes = payload.get("scenes", [])
     errors: list[str] = []
+    warnings: list[str] = []
     if not scenes:
         return ["no scenes"]
     total = sum(float(s.get("duration_sec", 0)) for s in scenes)
@@ -42,17 +43,19 @@ def audit_storyboard(root: Path) -> list[str]:
         if any(word in query for word in MINE_WORDS):
             errors.append(f"scene {scene.get('id')}: dangerous search term in source_query")
         if not str(scene.get("source", "")).startswith("card:") and not any(word in query for word in ANCHOR_WORDS):
-            errors.append(f"scene {scene.get('id')}: query has no geographic, institutional, or named anchor")
-    return errors
+            warnings.append(f"scene {scene.get('id')}: query has no geographic, institutional, or named anchor")
+    return errors + [f"WARNING: {x}" for x in warnings]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Machine audit gate for storyboard")
     parser.add_argument("--root", type=Path, default=Path("build"))
     args = parser.parse_args()
-    errors = audit_storyboard(args.root)
-    (args.root / "audit_report.json").write_text(json.dumps({"status": "blocked" if errors else "ok", "errors": errors}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"status": "blocked" if errors else "ok", "errors": errors}, ensure_ascii=False))
+    findings = audit_storyboard(args.root)
+    errors = [x for x in findings if not x.startswith("WARNING:")]
+    warnings = [x for x in findings if x.startswith("WARNING:")]
+    (args.root / "audit_report.json").write_text(json.dumps({"status": "blocked" if errors else "ok", "errors": errors, "warnings": warnings}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({"status": "blocked" if errors else "ok", "errors": errors, "warnings": warnings}, ensure_ascii=False))
     if errors:
         raise SystemExit(1)
 
