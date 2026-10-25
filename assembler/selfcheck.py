@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -10,6 +11,7 @@ def check_job(root: Path) -> list[str]:
     scenes = json.loads((root / "scenes.json").read_text(encoding="utf-8")).get("scenes", [])
     manifest_path = root / "images" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+    seen: dict[str, str] = {}
     for scene in scenes:
         sid = str(scene["id"])
         if str(scene.get("source", "")).startswith("card:"):
@@ -21,7 +23,17 @@ def check_job(root: Path) -> list[str]:
             errors.append(f"scene {sid}: manifest status {manifest[sid].get('status')}")
             continue
         path = root / manifest[sid].get("path", "")
-        if not path.is_file(): errors.append(f"scene {sid}: missing file {path}")
+        if not path.is_file():
+            errors.append(f"scene {sid}: missing file {path}")
+            continue
+        if path.suffix.lower() not in {".jpg", ".jpeg", ".mp4", ".webm", ".mov", ".mkv"}:
+            errors.append(f"scene {sid}: unsupported media extension {path.suffix}")
+        digest = hashlib.md5(path.read_bytes()).hexdigest()
+        previous = seen.get(digest)
+        if previous:
+            errors.append(f"scene {sid}: duplicate media with scene {previous}")
+        else:
+            seen[digest] = sid
     overlays_path = root / "overlays.json"
     if overlays_path.exists():
         overlays = json.loads(overlays_path.read_text(encoding="utf-8"))
