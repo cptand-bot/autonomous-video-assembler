@@ -22,7 +22,7 @@ python -m unittest discover -s tests -v
 
 Входом является SRT. Сцены не перекрываются, начинаются с нулевой секунды и заканчиваются на последнем таймкоде. `manifest.json` фиксирует готовность job и позволяет следующему шагу продолжить работу по файлам, а не по состоянию чата. На этом этапе визуальные поля создаются как безопасные placeholders; поиск материалов добавляется следующим этапом.
 
-Поиск источников реализован водопадом: сначала Яндекс-веб-поиск, затем DVIDS → Openverse → Flickr CC → Internet Archive → Pexels Video. Wikimedia Commons и DuckDuckGo не используются. Pexels включается переменной окружения `PEXELS_API_KEY`, Flickr — `FLICKR_API_KEY`; ключи не хранятся в репозитории. Результаты веб-поиска — только ссылки на страницы и не считаются лицензированными кадрами.
+Поиск источников реализован водопадом: Яндекс → Google → Internet Archive в крайнем случае. DVIDS, Openverse, Flickr, Wikimedia Commons и DuckDuckGo не используются. Результаты веб-поиска — только ссылки на страницы и не считаются лицензированными кадрами.
 
 Георадар подключается только на чтение через Google Sheets API. Репозиторий использует таблицу `GEO2_ARCHIVE_TEST` по ID `1BuaBPZQyIkpzXnRGK3cbIsLqRcTJy_sPR49_dDx71o4`; ключ сервисного аккаунта передаётся через GitHub Secret `GOOGLE_SERVICE_ACCOUNT_JSON`, а не хранится в коде. Адаптер `assembler/georadar.py` подтягивает `Archive` и связанные `AuthorNotes`, `AuthorReasoning`, `Productions`; запись в Google Drive не выполняется.
 

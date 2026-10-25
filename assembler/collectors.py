@@ -104,6 +104,21 @@ def search_yandex(query: str, limit: int = 8) -> list[dict]:
     return results
 
 
+def search_google(query: str, limit: int = 8) -> list[dict]:
+    """Second web discovery pass; pages are not treated as licensed media."""
+    url = "https://www.google.com/search?" + urlencode({"q": query, "num": limit})
+    data = urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
+    results = []
+    for match in re.finditer(r'<a href="(/url\?q=)?(https?://[^"&]+)[^>]*>', data, re.I):
+        link = unescape(match.group(2))
+        if "google." in link:
+            continue
+        results.append({"thumb": None, "full": link, "kind": "web", "src": "google", "title": link})
+        if len(results) >= limit:
+            break
+    return results
+
+
 def search_sources(query: str, limit: int = 8) -> list[dict]:
     return search_sources_detailed(query, limit)["options"]
 
@@ -111,17 +126,12 @@ def search_sources(query: str, limit: int = 8) -> list[dict]:
 def search_sources_detailed(query: str, limit: int = 8) -> dict:
     results: list[dict] = []
     errors: list[dict] = []
-    # Editorial waterfall: Yandex web discovery first, then direct public/licensed sources.
-    try:
-        results.extend(search_yandex(query, limit))
-    except Exception as exc:
-        errors.append({"source": "yandex", "error": str(exc)})
-    for source_name, fn in (("dvids", search_dvids), ("openverse", search_openverse), ("flickr", search_flickr), ("archive", search_archive)):
+    # Editorial waterfall for this project: web discovery first, archive last.
+    for source_name, fn in (("yandex", search_yandex), ("google", search_google), ("archive", search_archive)):
         try:
             results.extend(fn(query, limit=max(1, limit - len(results))))
         except Exception as exc:
             errors.append({"source": source_name, "error": str(exc)})
-            continue
         if len(results) >= limit:
             break
     if len(results) < limit:
