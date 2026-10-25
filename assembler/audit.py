@@ -6,7 +6,9 @@ import re
 from pathlib import Path
 
 
-FORBIDDEN = ("документальный кадр", "общий план")
+FORBIDDEN = ("документальный кадр", "общий план", "сцена№")
+MINE_WORDS = ("окоп", "траншея", "блиндаж", "землянка", "наблюдательный пункт", "полевой лагерь", "авария", "взрыв", "сгоревший", "топливо", "валюта", "доллары", "конвейер", "assembly line", "флаг у здания")
+ANCHOR_WORDS = ("росси", "украин", "сша", "американ", "европ", "москв", "киев", "донецк", "луган", "одесс", "берлин", "лондон", "кремл", "мид", "парламент", "министер", "порт", "аэропорт", "станци", "терминал", "завод", "бундестаг", "маск", "starlink")
 
 
 def audit_storyboard(root: Path) -> list[str]:
@@ -37,6 +39,10 @@ def audit_storyboard(root: Path) -> list[str]:
         query = str(scene.get("source_query", "")).lower()
         if any(word in query for word in FORBIDDEN) or re.search(r"\bсцена\s*\d+\b", query):
             errors.append(f"scene {scene.get('id')}: service wording in source_query")
+        if any(word in query for word in MINE_WORDS):
+            errors.append(f"scene {scene.get('id')}: dangerous search term in source_query")
+        if not str(scene.get("source", "")).startswith("card:") and not any(word in query for word in ANCHOR_WORDS):
+            errors.append(f"scene {scene.get('id')}: query has no geographic, institutional, or named anchor")
     return errors
 
 
