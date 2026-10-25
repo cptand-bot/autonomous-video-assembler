@@ -24,6 +24,8 @@ python -m unittest discover -s tests -v
 
 Поиск источников реализован водопадом DVIDS → Openverse → Flickr CC → Internet Archive → Wikimedia Commons → резервный web search → Pexels Video. Pexels включается переменной окружения `PEXELS_API_KEY`, Flickr — `FLICKR_API_KEY`; ключи не хранятся в репозитории. Результаты web search — только ссылки на страницы и не считаются лицензированными кадрами.
 
+Георадар подключается только на чтение через Google Sheets API. Репозиторий использует таблицу `GEO2_ARCHIVE_TEST` по ID `1BuaBPZQyIkpzXnRGK3cbIsLqRcTJy_sPR49_dDx71o4`; ключ сервисного аккаунта передаётся через GitHub Secret `GOOGLE_SERVICE_ACCOUNT_JSON`, а не хранится в коде. Адаптер `assembler/georadar.py` подтягивает `Archive` и связанные `AuthorNotes`, `AuthorReasoning`, `Productions`; запись в Google Drive не выполняется.
+
 `images/manifest.json` хранит для каждого кадра `status: ok | placeholder | FAILED`, источник, тип и путь. Self-check не пропускает `placeholder` и `FAILED`. Любая правка кадра или overlay инвалидирует прежнее утверждение в `approval.json`.
 
 Полный pipeline имеет отдельный gate утверждения:
