@@ -43,7 +43,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                     if candidate.get("kind") == "video":
                         entry = download_video(url, root, sid, candidate.get("src", "remote"))
                     else:
-                        data, *_ = download_image(url)
+                        data, *_ = download_image(url, minimum=1600)
                         entry = write_image(root, sid, data, source=candidate.get("src", "remote"))
                     if entry.get("md5") in used_md5:
                         Path(root / entry["path"]).unlink(missing_ok=True)

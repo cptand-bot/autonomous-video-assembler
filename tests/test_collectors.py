@@ -17,10 +17,11 @@ class CollectorTests(unittest.TestCase):
              patch("assembler.collectors.search_flickr", side_effect=hit("flickr")), \
              patch("assembler.collectors.search_archive", side_effect=hit("archive")), \
              patch("assembler.collectors.search_yandex", side_effect=hit("yandex")), \
+             patch("assembler.collectors.search_ddg_images", side_effect=hit("ddg")), \
              patch("assembler.collectors.search_google", side_effect=hit("google")), \
              patch("assembler.collectors.search_pexels_video", side_effect=hit("pexels")):
             search_sources_detailed("запрос", limit=3)
-        self.assertEqual(calls, ["yandex", "google", "archive"])
+        self.assertEqual(calls, ["yandex", "ddg", "archive"])
 
     @patch("assembler.collectors._get_json", return_value={"results": [{"url": "https://x/image.jpg", "license": "cc0", "creator": "Author"}]})
     def test_openverse_preserves_license_metadata(self, get_json):

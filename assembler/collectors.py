@@ -90,10 +90,21 @@ def search_web(query: str, limit: int = 8) -> list[dict]:
 
 
 def search_yandex(query: str, limit: int = 8) -> list[dict]:
-    """First pass: return direct image files from Yandex Images only."""
-    url = "https://yandex.com/images/search?" + urlencode({"text": query, "isize": "large"})
-    data = urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
-    return _direct_image_results(data, "yandex", limit)
+    """First pass: parse Yandex Images tile JSON, not ordinary web results."""
+    try:
+        url = "https://yandex.com/images/search?" + urlencode({"text": query, "isize": "large"})
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) news-video-review", "Accept-Language": "en,ru;q=0.9"})
+        data = urlopen(req, timeout=20).read().decode("utf-8", errors="ignore")
+        out = []
+        for match in re.finditer(r'img_href&quot;:&quot;(https?://[^&]+)&quot;', data):
+            out.append({"full": unescape(match.group(1)), "kind": "photo", "src": "yandex"})
+            if len(out) >= limit: return out
+        for match in re.finditer(r'"img_href":"(https?:\\?/\\?/[^"\\]+?)"', data):
+            out.append({"full": match.group(1).replace("\\/", "/"), "kind": "photo", "src": "yandex"})
+            if len(out) >= limit: break
+        return out
+    except Exception:
+        return []
 
 
 def search_google(query: str, limit: int = 8) -> list[dict]:
@@ -101,6 +112,20 @@ def search_google(query: str, limit: int = 8) -> list[dict]:
     url = "https://www.google.com/search?" + urlencode({"q": query, "tbm": "isch", "num": limit})
     data = urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
     return _direct_image_results(data, "google", limit)
+
+
+def search_ddg_images(query: str, limit: int = 8) -> list[dict]:
+    """Second image pass: DuckDuckGo image JSON with a fresh vqd token."""
+    try:
+        headers = {"Referer": "https://duckduckgo.com/", "Accept": "application/json, text/javascript, */*; q=0.01"}
+        page = urlopen(Request("https://duckduckgo.com/?" + urlencode({"q": query, "iax": "images", "ia": "images"}), headers={"User-Agent": "Mozilla/5.0", **headers}), timeout=20).read().decode("utf-8", errors="ignore")
+        token = re.search(r'vqd=["\']?([\d-]+)', page) or re.search(r'vqd=([\d-]+)&', page)
+        if not token: return []
+        url = "https://duckduckgo.com/i.js?" + urlencode({"l": "us-en", "o": "json", "q": query, "vqd": token.group(1), "f": ",,,,,", "p": "1"})
+        data = json.loads(urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0", **headers}), timeout=20).read().decode("utf-8"))
+        return [{"full": x["image"], "thumb": x.get("thumbnail"), "w": x.get("width", 0), "h": x.get("height", 0), "kind": "photo", "src": "ddg"} for x in data.get("results", []) if x.get("image")][:limit]
+    except Exception:
+        return []
 
 
 def _direct_image_results(html: str, source: str, limit: int) -> list[dict]:
@@ -129,7 +154,7 @@ def search_sources_detailed(query: str, limit: int = 8) -> dict:
     results: list[dict] = []
     errors: list[dict] = []
     # Editorial waterfall for this project: web discovery first, archive last.
-    for source_name, fn in (("yandex", search_yandex), ("google", search_google), ("archive", search_archive)):
+    for source_name, fn in (("yandex", search_yandex), ("ddg", search_ddg_images), ("archive", search_archive)):
         try:
             results.extend(fn(query, limit=max(1, limit - len(results))))
         except Exception as exc:
