@@ -31,7 +31,7 @@ def normalize_image(data: bytes, minimum: int = 200) -> tuple[bytes, int, int, s
     try:
         with Image.open(io.BytesIO(data)) as image:
             width, height = image.size
-            if width < minimum or height < minimum:
+            if width < minimum or height < max(800, minimum // 2):
                 raise MediaError(f"image is too small: {width}x{height}")
             converted = image.convert("RGB")
             output = io.BytesIO(); converted.save(output, format="JPEG", quality=92)
