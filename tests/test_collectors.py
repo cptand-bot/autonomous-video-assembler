@@ -31,9 +31,10 @@ class CollectorTests(unittest.TestCase):
 
     @patch("assembler.collectors.search_openverse", return_value=[{"src": "openverse"}])
     @patch("assembler.collectors.search_yandex", return_value=[])
+    @patch("assembler.collectors.search_ddg_images", return_value=[])
     @patch("assembler.collectors.search_google", return_value=[])
     @patch("assembler.collectors.search_archive", return_value=[])
-    def test_aggregates_sources(self, archive, google, yandex, openverse):
+    def test_aggregates_sources(self, archive, google, ddg, yandex, openverse):
         result = search_sources("порт", limit=2)
         self.assertEqual([x["src"] for x in result], [])
 
