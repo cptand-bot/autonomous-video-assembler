@@ -82,6 +82,8 @@ jobs:
         with: {name: review, path: build}
       - name: Self-check approved job
         run: python -m assembler.selfcheck --root build
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Render approved video
         run: python -m assembler.render --root build --output build/output.mp4 --audio "${{ inputs.audio_path }}" --captions
       - uses: actions/upload-artifact@v4
