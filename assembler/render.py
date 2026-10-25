@@ -26,7 +26,7 @@ def render_video(root: Path, output: Path, audio: Path | None = None, captions: 
         raise RenderError("no scenes")
     manifest_path = root / "images" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
-    missing = [str(s["id"]) for s in scenes if str(s["id"]) not in manifest and not str(s.get("source", "")).startswith("card:")]
+    missing = [str(s["id"]) for s in scenes if (str(s["id"]) not in manifest or manifest.get(str(s["id"]), {}).get("status") in {"FAILED", "placeholder"}) and not str(s.get("source", "")).startswith("card:")]
     if missing:
         raise RenderError("missing scene images: " + ", ".join(missing))
     captions_path = root / "captions.ass"

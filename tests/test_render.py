@@ -17,6 +17,14 @@ class RenderTests(unittest.TestCase):
             with self.assertRaises(RenderError):
                 render_video(root, root / "out.mp4")
 
+    def test_rejects_failed_manifest_image(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root / "images").mkdir(); (root / "images" / "001.jpg").write_bytes(b"x")
+            (root / "scenes.json").write_text(json.dumps({"scenes": [{"id": 1, "duration_sec": 1, "source": "press_photo"}]}), encoding="utf-8")
+            (root / "images" / "manifest.json").write_text(json.dumps({"1": {"path": "images/001.jpg", "status": "FAILED"}}), encoding="utf-8")
+            with self.assertRaises(RenderError):
+                render_video(root, root / "out.mp4")
+
     @patch("assembler.render.subprocess.run")
     def test_render_invokes_ffmpeg_for_each_scene(self, run):
         run.return_value.returncode = 0
