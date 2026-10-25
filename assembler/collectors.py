@@ -89,6 +89,21 @@ def search_web(query: str, limit: int = 8) -> list[dict]:
     return results
 
 
+def search_yandex(query: str, limit: int = 8) -> list[dict]:
+    """First web discovery pass; pages are not treated as licensed media."""
+    url = "https://yandex.com/search/?" + urlencode({"text": query})
+    data = urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
+    results = []
+    for match in re.finditer(r'href="(https?://[^" ]+)"[^>]*>.*?</a>', data, re.I | re.S):
+        link = unescape(match.group(1))
+        if "yandex." in link:
+            continue
+        results.append({"thumb": None, "full": link, "kind": "web", "src": "yandex", "title": link})
+        if len(results) >= limit:
+            break
+    return results
+
+
 def search_sources(query: str, limit: int = 8) -> list[dict]:
     return search_sources_detailed(query, limit)["options"]
 
@@ -96,8 +111,12 @@ def search_sources(query: str, limit: int = 8) -> list[dict]:
 def search_sources_detailed(query: str, limit: int = 8) -> dict:
     results: list[dict] = []
     errors: list[dict] = []
-    # Editorial waterfall: licensed/public sources first; ordinary web discovery is last-resort.
-    for source_name, fn in (("dvids", search_dvids), ("openverse", search_openverse), ("flickr", search_flickr), ("archive", search_archive), ("wikimedia", search_wikimedia)):
+    # Editorial waterfall: Yandex web discovery first, then direct public/licensed sources.
+    try:
+        results.extend(search_yandex(query, limit))
+    except Exception as exc:
+        errors.append({"source": "yandex", "error": str(exc)})
+    for source_name, fn in (("dvids", search_dvids), ("openverse", search_openverse), ("flickr", search_flickr), ("archive", search_archive)):
         try:
             results.extend(fn(query, limit=max(1, limit - len(results))))
         except Exception as exc:
@@ -105,11 +124,6 @@ def search_sources_detailed(query: str, limit: int = 8) -> dict:
             continue
         if len(results) >= limit:
             break
-    if len(results) < limit:
-        try:
-            results.extend(search_web(query, limit - len(results)))
-        except Exception as exc:
-            errors.append({"source": "web_search", "error": str(exc)})
     if len(results) < limit:
         try:
             results.extend(search_pexels_video(query, limit - len(results)))
