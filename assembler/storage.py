@@ -67,6 +67,8 @@ class JobStore:
             item = {"id": scene["id"]}
             entry = manifest.get(sid, {})
             image = self.root / entry.get("path", f"images/{int(scene['id']):03d}.jpg")
+            if entry.get("status"):
+                item["media_status"] = entry["status"]
             if entry.get("status") in {"FAILED", "placeholder"}:
                 item["status"] = "failed"
             elif image.exists():

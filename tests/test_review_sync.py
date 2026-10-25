@@ -27,4 +27,6 @@ class ReviewSyncTests(unittest.TestCase):
             (root / "scenes.json").write_text(json.dumps({"scenes": [{"id": 1}]}), encoding="utf-8")
             (root / "images" / "001.jpg").write_bytes(b"x")
             (root / "images" / "manifest.json").write_text(json.dumps({"1": {"path": "images/001.jpg", "status": "placeholder"}}), encoding="utf-8")
-            self.assertEqual(JobStore(root).state()["scenes"][0]["status"], "failed")
+            scene = JobStore(root).state()["scenes"][0]
+            self.assertEqual(scene["status"], "failed")
+            self.assertEqual(scene["media_status"], "placeholder")
