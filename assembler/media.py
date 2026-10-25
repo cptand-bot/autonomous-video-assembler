@@ -42,10 +42,10 @@ def normalize_image(data: bytes, minimum: int = 200) -> tuple[bytes, int, int, s
         raise MediaError(f"unsupported or invalid image: {exc}") from exc
 
 
-def download_image(url: str, timeout: int = 30) -> tuple[bytes, int, int, str]:
+def download_image(url: str, timeout: int = 30, minimum: int = 200) -> tuple[bytes, int, int, str]:
     request = Request(url, headers={"User-Agent": "autonomous-video-assembler/0.1"})
     with urlopen(request, timeout=timeout) as response:
-        return normalize_image(response.read())
+        return normalize_image(response.read(), minimum=minimum)
 
 
 def write_image(root: Path, sid: str, data: bytes, target: str = "scene", source: str = "") -> dict:
