@@ -43,8 +43,15 @@ jobs:
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
-          test -n "$GOOGLE_SERVICE_ACCOUNT_JSON" || { echo "Missing required secret: GOOGLE_SERVICE_ACCOUNT_JSON"; exit 1; }
-          python -m assembler.georadar_job --root build --key "${{ inputs.georadar_key }}" --service-account-json "$GOOGLE_SERVICE_ACCOUNT_JSON"
+          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            python -m assembler.georadar_job --root build --key "${{ inputs.georadar_key }}" --service-account-json "$GOOGLE_SERVICE_ACCOUNT_JSON"
+          elif [ -f "inputs/georadar/${{ inputs.georadar_key }}.json" ]; then
+            cp "inputs/georadar/${{ inputs.georadar_key }}.json" build/georadar.json
+            echo "Using read-only Georadar context exported for this job"
+          else
+            echo "Missing GOOGLE_SERVICE_ACCOUNT_JSON and no exported Georadar context"
+            exit 1
+          fi
       - name: Audit storyboard before fetch
         run: python -m assembler.audit --root build
       - uses: actions/upload-artifact@v4
