@@ -33,3 +33,7 @@ class PipelineTests(unittest.TestCase):
             (root / "images" / "manifest.json").write_text(json.dumps({"1": {"path": "images/001.jpg", "status": "FAILED"}}), encoding="utf-8")
             result = run_pipeline(root, root / "out.mp4", approve=True)
             self.assertEqual(result["status"], "blocked")
+
+    def test_pipeline_cli_has_nonzero_blocked_exit(self):
+        source = Path("assembler/pipeline.py").read_text(encoding="utf-8")
+        self.assertIn("raise SystemExit(2)", source)

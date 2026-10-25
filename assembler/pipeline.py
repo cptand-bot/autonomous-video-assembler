@@ -30,7 +30,11 @@ def run_pipeline(root: Path, output: Path, approve: bool = False, audio: Path | 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run fetch/review/render pipeline")
     parser.add_argument("--root", type=Path, default=Path("build")); parser.add_argument("--output", type=Path, default=Path("build/output.mp4")); parser.add_argument("--audio", type=Path); parser.add_argument("--captions", action="store_true"); parser.add_argument("--approve", action="store_true")
-    args = parser.parse_args(); audio = args.audio if args.audio and args.audio.is_file() else None; print(json.dumps(run_pipeline(args.root, args.output, args.approve, audio, args.captions), ensure_ascii=False))
+    args = parser.parse_args(); audio = args.audio if args.audio and args.audio.is_file() else None
+    result = run_pipeline(args.root, args.output, args.approve, audio, args.captions)
+    print(json.dumps(result, ensure_ascii=False))
+    if result.get("status") == "blocked":
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
