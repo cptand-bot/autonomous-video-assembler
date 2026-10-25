@@ -6,11 +6,11 @@ on:
       srt_path:
         description: "Repository-relative SRT path"
         required: true
-        default: "sample/test.srt"
+        default: "inputs/musk-starlink-5min.srt"
       georadar_key:
         description: "Optional GEO2 key, e.g. PROD_20261025_TOPIC_CHANNEL"
         required: false
-        default: ""
+        default: "PROD_20261025_MUSK_STARLINK_5MIN"
       audio_path:
         description: "Optional repository-relative MP3 path"
         required: false
