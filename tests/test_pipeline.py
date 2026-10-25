@@ -24,3 +24,12 @@ class PipelineTests(unittest.TestCase):
             result = run_pipeline(root, root / "out.mp4", approve=True)
             self.assertEqual(result["status"], "rendered")
             render.assert_called_once()
+
+    @patch("assembler.pipeline.fetch_job", return_value={"scenes": 1, "with_options": 0, "errors": []})
+    def test_approval_blocks_failed_manifest(self, fetch):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root / "images").mkdir()
+            (root / "scenes.json").write_text(json.dumps({"scenes": [{"id": 1, "source": "press_photo"}]}), encoding="utf-8")
+            (root / "images" / "manifest.json").write_text(json.dumps({"1": {"path": "images/001.jpg", "status": "FAILED"}}), encoding="utf-8")
+            result = run_pipeline(root, root / "out.mp4", approve=True)
+            self.assertEqual(result["status"], "blocked")

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .fetch_job import fetch_job
 from .render import render_video
+from .selfcheck import check_job
 
 
 def run_pipeline(root: Path, output: Path, approve: bool = False, audio: Path | None = None, captions: bool = False) -> dict:
@@ -13,6 +14,12 @@ def run_pipeline(root: Path, output: Path, approve: bool = False, audio: Path | 
     result = {"status": "review_required", "fetch": fetch, "approved": approve}
     (root / "pipeline_state.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if not approve:
+        return result
+    errors = check_job(root)
+    if errors:
+        result["status"] = "blocked"
+        result["errors"] = errors
+        (root / "pipeline_state.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return result
     rendered = render_video(root, output, audio, captions)
     result.update(rendered); result["status"] = "rendered"
