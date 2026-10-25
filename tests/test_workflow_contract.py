@@ -14,5 +14,5 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('sudo apt-get install -y ffmpeg', workflow)
         self.assertIn('permissions:', workflow)
         self.assertGreaterEqual(workflow.count('retention-days: 1'), 3)
-        self.assertIn('Check optional API configuration', workflow)
+        self.assertNotIn('Missing required secret: PEXELS_API_KEY', workflow)
         self.assertNotIn('echo "$PEXELS_API_KEY"', workflow)

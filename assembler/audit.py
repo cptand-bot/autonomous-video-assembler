@@ -39,6 +39,9 @@ def audit_storyboard(root: Path) -> list[str]:
         errors.append("duplicate first three query words")
     for scene in scenes:
         query = str(scene.get("source_query", "")).lower()
+        narration = str(scene.get("text", "")).strip().lower()
+        if query and narration and query[:40].strip() == narration[:40].strip():
+            errors.append(f"scene {scene.get('id')}: source_query is a slice of narration")
         if any(word in query for word in FORBIDDEN) or re.search(r"\bсцена\s*\d+\b", query):
             errors.append(f"scene {scene.get('id')}: service wording in source_query")
         if any(word in query for word in MINE_WORDS):

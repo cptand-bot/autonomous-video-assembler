@@ -134,9 +134,4 @@ def search_sources_detailed(query: str, limit: int = 8) -> dict:
             errors.append({"source": source_name, "error": str(exc)})
         if len(results) >= limit:
             break
-    if len(results) < limit:
-        try:
-            results.extend(search_pexels_video(query, limit - len(results)))
-        except Exception as exc:
-            errors.append({"source": "pexels", "error": str(exc)})
     return {"options": results[:limit], "errors": errors}

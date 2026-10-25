@@ -69,7 +69,9 @@ def download_video(url: str, root: Path, sid: str, source: str = "remote") -> di
     folder = root / "videos"; folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{int(sid):03d}.mp4"
     with urlopen(request, timeout=60) as response:
-        path.write_bytes(response.read())
+        data = response.read()
+    path.write_bytes(data)
+    digest = hashlib.md5(data).hexdigest()
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=width,height", "-of", "json", str(path)], capture_output=True, text=True)
     if probe.returncode:
         path.unlink(missing_ok=True); raise MediaError("invalid video: " + probe.stderr[-500:])
@@ -78,6 +80,6 @@ def download_video(url: str, root: Path, sid: str, source: str = "remote") -> di
     if duration <= 0:
         path.unlink(missing_ok=True); raise MediaError("video has no duration")
     manifest_path = root / "images" / "manifest.json"; manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
-    manifest[str(sid)] = {"path": str(path.relative_to(root)).replace("\\", "/"), "source": source, "kind": "video", "duration": duration, "status": "ok"}
+    manifest[str(sid)] = {"path": str(path.relative_to(root)).replace("\\", "/"), "md5": digest, "source": source, "kind": "video", "duration": duration, "status": "ok"}
     manifest_path.parent.mkdir(exist_ok=True); manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return manifest[str(sid)]

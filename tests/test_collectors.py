@@ -20,7 +20,7 @@ class CollectorTests(unittest.TestCase):
              patch("assembler.collectors.search_google", side_effect=hit("google")), \
              patch("assembler.collectors.search_pexels_video", side_effect=hit("pexels")):
             search_sources_detailed("запрос", limit=3)
-        self.assertEqual(calls, ["yandex", "google", "archive", "pexels"])
+        self.assertEqual(calls, ["yandex", "google", "archive"])
 
     @patch("assembler.collectors._get_json", return_value={"results": [{"url": "https://x/image.jpg", "license": "cc0", "creator": "Author"}]})
     def test_openverse_preserves_license_metadata(self, get_json):

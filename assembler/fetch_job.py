@@ -16,6 +16,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     errors: list[dict] = []
     downloaded = 0
     used_urls: set[str] = set()
+    used_md5: set[str] = set()
     manifest = root / "images" / "manifest.json"
     scenes = payload.get("scenes", [])
     total_scenes = len(scenes)
@@ -40,18 +41,25 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                     continue
                 try:
                     if candidate.get("kind") == "video":
-                        download_video(url, root, sid, candidate.get("src", "remote"))
+                        entry = download_video(url, root, sid, candidate.get("src", "remote"))
                     else:
                         data, *_ = download_image(url)
-                        write_image(root, sid, data, source=candidate.get("src", "remote"))
+                        entry = write_image(root, sid, data, source=candidate.get("src", "remote"))
+                    if entry.get("md5") in used_md5:
+                        Path(root / entry["path"]).unlink(missing_ok=True)
+                        current = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+                        current.pop(str(sid), None)
+                        manifest.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                        continue
+                    used_md5.add(entry.get("md5", ""))
                     used_urls.add(url)
                     downloaded += 1
                     break
                 except Exception as exc:
                     errors.append({"scene": sid, "source": candidate.get("src", "unknown"), "error": str(exc)})
-            # Search results can be valid pages but not downloadable media (notably
-            # Wikimedia rate-limit responses). Force the video-only fallback once.
-            if not any(str(sid) == str(k) for k in (json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {})):
+            # Pexels is never an implicit fallback. It is allowed only when the
+            # storyboard explicitly opted this scene into video stock.
+            if scene.get("source") == "pexels_video" and not any(str(sid) == str(k) for k in (json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {})):
                 try:
                     fallback = search_pexels_video(query, limit=3)
                     for candidate in fallback:
@@ -73,7 +81,11 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                 manifest.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"PROGRESS {position}/{total_scenes} scene={sid} downloaded={downloaded}", flush=True)
     (root / "search_options.json").write_text(json.dumps(options, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "errors": errors}
+    manifest_data = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+    failed = sum(1 for scene in scenes if not str(scene.get("source", "")).startswith("card:") and manifest_data.get(str(scene["id"]), {}).get("status") != "ok")
+    report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "failed": failed, "errors": errors}
+    if download and scenes and failed / max(1, len([s for s in scenes if not str(s.get("source", "")).startswith("card:")])) > 0.25:
+        raise MediaError(f"too many failed scenes: {failed}/{len(scenes)}")
     (root / "fetch_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if download:
         write_static_review(root)
