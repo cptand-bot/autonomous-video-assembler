@@ -29,13 +29,13 @@ def build_search_query(text: str, used: set[str]) -> str:
     candidates = []
     for width in (6, 5, 4, 3):
         if len(words) >= width:
-            candidates.append(" ".join(words[:width]) + " реальное фото")
+            candidates.append("реальное фото " + " ".join(words[:width]))
     for query in candidates:
         if query not in used and " ".join(query.split()[:3]) not in {" ".join(x.split()[:3]) for x in used}:
             return query
     # Keep the query distinct without using a scene number or service wording.
     tail = next((w for w in words[3:] if w not in used), "событие")
-    return f"{tail} {words[0] if words else 'новости'} реальное фото"
+    return f"реальное фото {tail} {words[0] if words else 'новости'}"
 
 
 def build_scenes(cues: list[Cue], channel: str) -> dict:
