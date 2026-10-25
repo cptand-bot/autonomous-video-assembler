@@ -79,15 +79,17 @@ class GeoRadarClient:
 
     def find(self, key: str) -> GeoRecord:
         archive = _rows_to_dicts(self.values("Archive"))
-        row = next((r for r in archive if key in {r.get("record_key", ""), r.get("production_id", "")} or key in str(r.get("text", ""))), None)
+        row = next((r for r in archive if key == r.get("record_key", "") or key in str(r.get("text", ""))), None)
+        productions = _rows_to_dicts(self.values("Productions"))
+        production = next((r for r in productions if r.get("production_id") == key), None)
+        if row is None and production is not None:
+            row = {"text": production.get("angle", ""), "channel_title": production.get("channel", "")}
         if row is None:
             raise KeyError(f"Georadar record not found: {key}")
         notes = _rows_to_dicts(self.values("AuthorNotes"))
         reasoning = _rows_to_dicts(self.values("AuthorReasoning"))
-        productions = _rows_to_dicts(self.values("Productions"))
         linked_notes = [r.get("original_text", "") for r in notes if key in str(r.get("original_text", "")) or key == r.get("archive_record_key", "")]
         linked_reasoning = [r.get("author_original", "") for r in reasoning if key in str(r.get("related_geo2_ids", "")) or key in str(r.get("source_reference", ""))]
-        production = next((r for r in productions if r.get("production_id") == key), None)
         return GeoRecord(
             key=key,
             text=row.get("text", ""),

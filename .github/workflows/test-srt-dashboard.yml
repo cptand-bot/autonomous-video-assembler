@@ -7,6 +7,10 @@ on:
         description: "Repository-relative SRT path"
         required: true
         default: "sample/test.srt"
+      georadar_key:
+        description: "Optional GEO2 key, e.g. PROD_20261025_TOPIC_CHANNEL"
+        required: false
+        default: ""
       audio_path:
         description: "Optional repository-relative MP3 path"
         required: false
@@ -34,6 +38,13 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
       - run: python -m assembler.cli "${{ inputs.srt_path }}" --channel "${{ inputs.channel }}" --output build
+      - name: Read Georadar context
+        if: ${{ inputs.georadar_key != '' }}
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          test -n "$GOOGLE_SERVICE_ACCOUNT_JSON" || { echo "Missing required secret: GOOGLE_SERVICE_ACCOUNT_JSON"; exit 1; }
+          python -m assembler.georadar_job --root build --key "${{ inputs.georadar_key }}" --service-account-json "$GOOGLE_SERVICE_ACCOUNT_JSON"
       - uses: actions/upload-artifact@v4
         with:
           name: storyboard
