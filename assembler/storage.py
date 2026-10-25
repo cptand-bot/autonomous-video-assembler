@@ -102,6 +102,9 @@ class JobStore:
         else:
             needs.pop(str(sid), None)
         self._write("needs_upload.json", needs)
+        approval = self._read("approval.json", {"approved": False})
+        if approval.get("approved"):
+            self._write("approval.json", {"approved": False, "invalidated_by": str(sid), "at": time.time()})
 
     def remove_overlay(self, sid: str) -> None:
         overlays = self.overlays()
