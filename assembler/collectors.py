@@ -17,7 +17,7 @@ def _get_json(url: str, headers: dict[str, str] | None = None) -> dict:
 def search_openverse(query: str, limit: int = 8) -> list[dict]:
     url = "https://api.openverse.org/v1/images/" + "?" + urlencode({"q": query, "page_size": limit})
     data = _get_json(url)
-    return [{"thumb": x.get("thumbnail"), "full": x.get("url"), "kind": "photo", "w": x.get("width"), "h": x.get("height"), "src": "openverse"} for x in data.get("results", []) if x.get("url")]
+    return [{"thumb": x.get("thumbnail"), "full": x.get("url"), "kind": "photo", "w": x.get("width"), "h": x.get("height"), "src": "openverse", "license": x.get("license"), "creator": x.get("creator")} for x in data.get("results", []) if x.get("url")]
 
 
 def search_wikimedia(query: str, limit: int = 8) -> list[dict]:
@@ -73,7 +73,7 @@ def search_flickr(query: str, limit: int = 8) -> list[dict]:
     for x in data.get("photos", {}).get("photo", []):
         full = x.get("url_o", x.get("url_q"))
         if full:
-            results.append({"thumb": x.get("url_q", full), "full": full, "kind": "photo", "w": x.get("width_o"), "h": x.get("height_o"), "src": "flickr"})
+            results.append({"thumb": x.get("url_q", full), "full": full, "kind": "photo", "w": x.get("width_o"), "h": x.get("height_o"), "src": "flickr", "license": x.get("license"), "creator": x.get("ownername")})
     return results
 
 

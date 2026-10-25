@@ -22,6 +22,12 @@ class CollectorTests(unittest.TestCase):
             search_sources_detailed("запрос", limit=3)
         self.assertEqual(calls, ["dvids", "openverse", "flickr", "archive", "wikimedia", "web_search", "pexels"])
 
+    @patch("assembler.collectors._get_json", return_value={"results": [{"url": "https://x/image.jpg", "license": "cc0", "creator": "Author"}]})
+    def test_openverse_preserves_license_metadata(self, get_json):
+        result = __import__("assembler.collectors", fromlist=["search_openverse"]).search_openverse("test", 1)
+        self.assertEqual(result[0]["license"], "cc0")
+        self.assertEqual(result[0]["creator"], "Author")
+
     @patch("assembler.collectors.search_openverse", return_value=[{"src": "openverse"}])
     @patch("assembler.collectors.search_wikimedia", return_value=[{"src": "wikimedia"}])
     @patch("assembler.collectors.search_archive", return_value=[])
