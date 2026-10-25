@@ -90,6 +90,15 @@ jobs:
           name: review
           retention-days: 1
           path: build/
+      - name: Publish review-ready status
+        run: |
+          {
+            echo "## REVIEW READY"
+            echo ""
+            echo "Дашборд готов к утверждению. Скачайте artifact **review** и откройте review.html."
+            echo ""
+            echo "Финальный рендер не запускался: approve=false."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   render:
     needs: fetch-review
