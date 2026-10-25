@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 
 from PIL import Image
 
-from assembler.media import MediaError, normalize_image, write_image
+from assembler.media import MediaError, add_manifest_metadata, normalize_image, write_image
 
 
 class MediaTests(unittest.TestCase):
@@ -36,3 +36,12 @@ class MediaTests(unittest.TestCase):
             manifest = __import__("json").loads((root / "images" / "manifest.json").read_text())
             self.assertEqual(manifest["1"]["path"], scene["path"])
             self.assertEqual(overlay["target"], "overlay")
+
+    def test_manifest_keeps_license_metadata(self):
+        image = Image.new("RGB", (300, 240), "black")
+        buf = io.BytesIO(); image.save(buf, format="JPEG")
+        with TemporaryDirectory() as directory:
+            root = Path(directory); write_image(root, "1", buf.getvalue(), "scene", "openverse")
+            add_manifest_metadata(root, "1", {"license": "cc0", "creator": "Author"})
+            manifest = __import__("json").loads((root / "images" / "manifest.json").read_text())
+            self.assertEqual(manifest["1"]["license"], "cc0")

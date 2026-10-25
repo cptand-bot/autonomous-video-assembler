@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .storage import JobStore
 from .collectors import search_sources_detailed
-from .media import MediaError, download_image, download_video, normalize_image, write_image
+from .media import MediaError, add_manifest_metadata, download_image, download_video, normalize_image, write_image
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
@@ -80,6 +80,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     record = overlays.setdefault(str(sid), {})
                     record["photo"] = str(path.relative_to(self.store.root)).replace("\\", "/")
                     self.store._write("overlays.json", overlays)
+                elif body.get("license") or body.get("creator") or body.get("title"):
+                    add_manifest_metadata(self.store.root, sid, body)
             except (KeyError, FileNotFoundError, MediaError, OSError) as exc:
                 self._json(400, {"ok": False, "error": str(exc)}); return
             self.store.mark_need(sid)

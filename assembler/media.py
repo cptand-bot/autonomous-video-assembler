@@ -14,6 +14,19 @@ class MediaError(ValueError):
     pass
 
 
+def add_manifest_metadata(root: Path, sid: str, metadata: dict) -> None:
+    path = root / "images" / "manifest.json"
+    if not path.exists():
+        return
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if str(sid) not in manifest:
+        return
+    for key in ("license", "creator", "title"):
+        if metadata.get(key):
+            manifest[str(sid)][key] = metadata[key]
+    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def normalize_image(data: bytes, minimum: int = 200) -> tuple[bytes, int, int, str]:
     try:
         with Image.open(io.BytesIO(data)) as image:
