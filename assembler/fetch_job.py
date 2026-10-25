@@ -13,6 +13,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     options: dict[str, list[dict]] = {}
     errors: list[dict] = []
     downloaded = 0
+    used_urls: set[str] = set()
     manifest = root / "images" / "manifest.json"
     scenes = payload.get("scenes", [])
     total_scenes = len(scenes)
@@ -29,7 +30,9 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
             candidates = list(options[sid])
             for candidate in candidates:
                 url = candidate.get("full")
-                if not url or candidate.get("src") == "web_search":
+                if not url or candidate.get("kind") == "web" or candidate.get("src") in {"yandex", "google"}:
+                    continue
+                if url in used_urls:
                     continue
                 try:
                     if candidate.get("kind") == "video":
@@ -37,6 +40,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                     else:
                         data, *_ = download_image(url)
                         write_image(root, sid, data, source=candidate.get("src", "remote"))
+                    used_urls.add(url)
                     downloaded += 1
                     break
                 except Exception as exc:
@@ -48,7 +52,10 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                     fallback = search_pexels_video(query, limit=3)
                     for candidate in fallback:
                         try:
+                            if candidate.get("full") in used_urls:
+                                continue
                             download_video(candidate["full"], root, sid, candidate.get("src", "pexels"))
+                            used_urls.add(candidate["full"])
                             downloaded += 1
                             break
                         except Exception as exc:
