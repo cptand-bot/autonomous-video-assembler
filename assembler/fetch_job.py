@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .collectors import search_sources_detailed, search_pexels_video
 from .media import download_image, download_video, write_image, MediaError
+from .dashboard import write_static_review
 
 
 def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
@@ -74,6 +75,8 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     (root / "search_options.json").write_text(json.dumps(options, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "errors": errors}
     (root / "fetch_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if download:
+        write_static_review(root)
     return report
 
 

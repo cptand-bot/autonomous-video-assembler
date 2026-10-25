@@ -80,3 +80,16 @@ def write_outputs(payload: dict, output_dir: Path) -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     (output_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_static_review(root: Path) -> None:
+    """Create an artifact-only review page that works without localhost/API."""
+    payload = json.loads((root / "scenes.json").read_text(encoding="utf-8"))
+    manifest = json.loads((root / "images" / "manifest.json").read_text(encoding="utf-8")) if (root / "images" / "manifest.json").exists() else {}
+    cards = []
+    for s in payload.get("scenes", []):
+        item = manifest.get(str(s["id"]), {})
+        src = item.get("path", "")
+        cards.append(f'<article data-id="{s["id"]}"><img src="{html.escape(src)}"><b>СЦЕНА {s["id"]}</b><p>{html.escape(s.get("text", ""))}</p><button data-v="ok">✓ Оставить</button><button data-v="bad">✕ Брак</button></article>')
+    page = """<!doctype html><meta charset="utf-8"><title>Review</title><style>body{font:14px system-ui;background:#111;color:#eee;margin:20px}main{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}article{background:#1b1c21;padding:10px;border-radius:10px}img{width:100%;aspect-ratio:16/9;object-fit:cover;background:#000}button{padding:7px;margin:3px;cursor:pointer}.bad{border:2px solid #e44}</style><h1>Review · локальный просмотр без сервера</h1><p id="status"></p><main>""" + "".join(cards) + """</main><script>const state={};document.querySelectorAll('article').forEach(a=>a.onclick=e=>{if(!e.target.dataset.v)return;state[a.dataset.id]=e.target.dataset.v;a.classList.toggle('bad',e.target.dataset.v==='bad');document.querySelector('#status').textContent=Object.keys(state).length+' сцен отмечено';localStorage.review=JSON.stringify(state)});</script>"""
+    (root / "review_static.html").write_text(page, encoding="utf-8")
