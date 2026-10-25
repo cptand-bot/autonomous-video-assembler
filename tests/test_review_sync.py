@@ -20,3 +20,11 @@ class ReviewSyncTests(unittest.TestCase):
             store.mark_need("7")
             state = json.loads((root / "approval.json").read_text(encoding="utf-8"))
             self.assertFalse(state["approved"])
+
+    def test_placeholder_manifest_is_failed_in_review_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root / "images").mkdir()
+            (root / "scenes.json").write_text(json.dumps({"scenes": [{"id": 1}]}), encoding="utf-8")
+            (root / "images" / "001.jpg").write_bytes(b"x")
+            (root / "images" / "manifest.json").write_text(json.dumps({"1": {"path": "images/001.jpg", "status": "placeholder"}}), encoding="utf-8")
+            self.assertEqual(JobStore(root).state()["scenes"][0]["status"], "failed")
