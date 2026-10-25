@@ -45,6 +45,8 @@ jobs:
         run: |
           test -n "$GOOGLE_SERVICE_ACCOUNT_JSON" || { echo "Missing required secret: GOOGLE_SERVICE_ACCOUNT_JSON"; exit 1; }
           python -m assembler.georadar_job --root build --key "${{ inputs.georadar_key }}" --service-account-json "$GOOGLE_SERVICE_ACCOUNT_JSON"
+      - name: Audit storyboard before fetch
+        run: python -m assembler.audit --root build
       - uses: actions/upload-artifact@v4
         with:
           name: storyboard
