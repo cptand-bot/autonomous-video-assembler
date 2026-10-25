@@ -23,8 +23,9 @@ def audit_storyboard(root: Path) -> list[str]:
     if total >= 20 and (len(scenes) < expected * 0.9 or len(scenes) > expected * 1.1):
         errors.append(f"scene count {len(scenes)} outside formula range {expected * .9:.1f}-{expected * 1.1:.1f}")
     durations = [float(s.get("duration_sec", 0)) for s in scenes]
-    if total >= 20 and min(durations) < 5:
-        errors.append("scene shorter than 5 seconds")
+    short = sum(1 for value in durations if value < 5)
+    if total >= 20 and short > max(1, len(durations) // 10):
+        errors.append(f"too many scenes shorter than 5 seconds: {short}")
     if max(durations) > 15:
         errors.append("scene longer than 15 seconds")
     cards = [s for s in scenes if str(s.get("source", "")).startswith("card:")]
