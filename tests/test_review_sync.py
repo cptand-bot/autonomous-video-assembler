@@ -30,3 +30,12 @@ class ReviewSyncTests(unittest.TestCase):
             scene = JobStore(root).state()["scenes"][0]
             self.assertEqual(scene["status"], "failed")
             self.assertEqual(scene["media_status"], "placeholder")
+
+    def test_state_exposes_media_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root / "images").mkdir()
+            (root / "scenes.json").write_text(json.dumps({"scenes": [{"id": 1}]}), encoding="utf-8")
+            (root / "images" / "001.jpg").write_bytes(b"x")
+            (root / "images" / "manifest.json").write_text(json.dumps({"1": {"path": "images/001.jpg", "status": "ok", "url": "https://example.test/x", "license": "cc0", "creator": "A"}}), encoding="utf-8")
+            scene = JobStore(root).state()["scenes"][0]
+            self.assertEqual((scene["url"], scene["license"], scene["creator"]), ("https://example.test/x", "cc0", "A"))

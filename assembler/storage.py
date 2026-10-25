@@ -74,7 +74,7 @@ class JobStore:
             elif image.exists():
                 source = entry.get("source", "press")
                 kind = manifest.get(sid, {}).get("kind", "photo")
-                item.update({"thumb": entry.get("thumb", f"images/{image.name}") if kind != "video" else entry.get("thumb"), "video": str(image.relative_to(self.root)).replace("\\", "/") if kind == "video" else None, "v": image.stat().st_mtime_ns, "badge": source, "badge_label": labels.get(source, source.upper()), "is_video": kind == "video"})
+                item.update({"thumb": entry.get("thumb", f"images/{image.name}") if kind != "video" else entry.get("thumb"), "video": str(image.relative_to(self.root)).replace("\\", "/") if kind == "video" else None, "v": image.stat().st_mtime_ns, "badge": source, "badge_label": labels.get(source, source.upper()), "is_video": kind == "video", "url": entry.get("url"), "license": entry.get("license"), "creator": entry.get("creator")})
             else:
                 item["status"] = "failed"
             scenes.append(item)
