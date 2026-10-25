@@ -56,7 +56,8 @@ jobs:
           FLICKR_API_KEY: ${{ secrets.FLICKR_API_KEY }}
         shell: bash
         run: |
-          test -n "$PEXELS_API_KEY" && echo "Pexels API: configured" || echo "Pexels API: not configured"
+          test -n "$PEXELS_API_KEY" || { echo "Missing required secret: PEXELS_API_KEY"; exit 1; }
+          echo "Pexels API: configured"
           test -n "$FLICKR_API_KEY" && echo "Flickr API: configured" || echo "Flickr API: not configured"
       - name: Fetch media candidates
         env:
@@ -84,8 +85,13 @@ jobs:
         run: python -m assembler.selfcheck --root build
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - name: Render approved video
-        run: python -m assembler.render --root build --output build/output.mp4 --audio "${{ inputs.audio_path }}" --captions
+      - name: Render approved silent video
+        run: |
+          if [ -n "${{ inputs.audio_path }}" ]; then
+            python -m assembler.render --root build --output build/output.mp4 --audio "${{ inputs.audio_path }}"
+          else
+            python -m assembler.render --root build --output build/output.mp4
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: final-video
