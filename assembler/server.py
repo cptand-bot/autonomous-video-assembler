@@ -122,7 +122,14 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 self.store.append_log("layout_journal.jsonl", {"scene": sid, "patch": body})
             self._json(200, {"ok": True}); return
         if parsed.path == "/approve" and not sid:
-            body = self._body(); approved = bool(body.get("approved", False)); self.store._write("approval.json", {"approved": approved, "at": __import__("time").time()}); self._json(200, {"ok": True, "approved": approved}); return
+            body = self._body(); approved = bool(body.get("approved", False))
+            if approved:
+                snapshot = self.store.state()
+                blockers = [str(scene["id"]) for scene in snapshot["scenes"] if scene.get("status") == "failed"]
+                blockers.extend(str(scene_id) for scene_id in snapshot.get("needs", {}))
+                if blockers:
+                    self._json(409, {"ok": False, "approved": False, "error": "review has unresolved scenes", "scenes": sorted(set(blockers))}); return
+            self.store._write("approval.json", {"approved": approved, "at": __import__("time").time()}); self._json(200, {"ok": True, "approved": approved}); return
         if parsed.path in ("/overlay_text", "/ticker") and sid:
             body = self._body(); overlays = self.store.overlays(); record = overlays.setdefault(sid, {})
             key = "text" if parsed.path == "/overlay_text" else "ticker"
