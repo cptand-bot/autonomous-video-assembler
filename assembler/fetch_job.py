@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .collectors import search_sources_detailed
+from .collectors import search_sources_detailed, search_pexels_video
 from .media import download_image, download_video, write_image, MediaError
 
 
@@ -26,7 +26,8 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
         options[sid] = result["options"]
         errors.extend({"scene": sid, **error} for error in result["errors"])
         if download:
-            for candidate in options[sid]:
+            candidates = list(options[sid])
+            for candidate in candidates:
                 url = candidate.get("full")
                 if not url or candidate.get("src") == "web_search":
                     continue
@@ -40,6 +41,20 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                     break
                 except Exception as exc:
                     errors.append({"scene": sid, "source": candidate.get("src", "unknown"), "error": str(exc)})
+            # Search results can be valid pages but not downloadable media (notably
+            # Wikimedia rate-limit responses). Force the video-only fallback once.
+            if not any(str(sid) == str(k) for k in (json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {})):
+                try:
+                    fallback = search_pexels_video(query, limit=3)
+                    for candidate in fallback:
+                        try:
+                            download_video(candidate["full"], root, sid, candidate.get("src", "pexels"))
+                            downloaded += 1
+                            break
+                        except Exception as exc:
+                            errors.append({"scene": sid, "source": "pexels_fallback", "error": str(exc)})
+                except Exception as exc:
+                    errors.append({"scene": sid, "source": "pexels_fallback", "error": str(exc)})
             if not any(str(sid) == str(k) for k in (json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {})):
                 (root / "images").mkdir(parents=True, exist_ok=True)
                 current = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
