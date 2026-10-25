@@ -63,7 +63,7 @@ jobs:
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           FLICKR_API_KEY: ${{ secrets.FLICKR_API_KEY }}
-        run: python -m assembler.fetch_job --root build --limit 8
+        run: python -m assembler.fetch_job --root build --limit 8 --download
       - uses: actions/upload-artifact@v4
         with:
           name: review
