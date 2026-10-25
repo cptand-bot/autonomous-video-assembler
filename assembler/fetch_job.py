@@ -33,7 +33,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
             candidates = list(options[sid])
             for candidate in candidates:
                 url = candidate.get("full")
-                if not url or candidate.get("kind") == "web" or candidate.get("src") in {"yandex", "google"}:
+                if not url or candidate.get("kind") == "web":
                     continue
                 if candidate.get("kind") == "photo" and not re.search(r"\.(?:jpe?g|png|webp)(?:\?|$)", url, re.I):
                     continue
