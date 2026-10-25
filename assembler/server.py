@@ -122,7 +122,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 self.store.append_log("layout_journal.jsonl", {"scene": sid, "patch": body})
             self._json(200, {"ok": True}); return
         if parsed.path == "/approve" and not sid:
-            body = self._body(); approved = bool(body.get("approved", False))
+            body = self._body(); approved = body.get("approved") is True
             if approved:
                 snapshot = self.store.state()
                 blockers = [str(scene["id"]) for scene in snapshot["scenes"] if scene.get("status") == "failed"]
