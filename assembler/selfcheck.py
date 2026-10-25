@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+
+from .guards import banned_files, load_bans, quality_warnings
 
 
 def check_job(root: Path) -> list[str]:
@@ -42,6 +45,19 @@ def check_job(root: Path) -> list[str]:
             text = overlay.get("text", {})
             if str(text.get("pos", "")).startswith("b"): errors.append(f"overlay {sid}: bottom text position is reserved for subtitles")
             if not 0.4 <= float(overlay.get("scale", 1)) <= 2.4: errors.append(f"overlay {sid}: scale out of range")
+    # FINAL GATE, deliberately last: the ban list changes while a build is in
+    # flight. With several assemblers running in parallel one of them bans a
+    # frame another one is already holding, and only a sweep right before the
+    # send catches it.
+    ban_path = os.environ.get("BANNED_MD5_FILE", str(root / "banned_md5.json"))
+    bans = load_bans(ban_path)
+    if bans:
+        for path, meta in banned_files(root, bans):
+            errors.append(f"banned frame in build: {path} ({meta.get('reason', 'no reason recorded')})")
+
+    frames = [p for p in sorted((root / "images").glob("scene_*")) if p.suffix not in {".json", ".png"}]
+    for warning in quality_warnings(frames):
+        errors.append("quality: " + warning)
     return errors
 
 

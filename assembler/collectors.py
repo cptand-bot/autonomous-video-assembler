@@ -7,6 +7,8 @@ from html import unescape
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from .guards import filter_candidates
+
 
 def _get_json(url: str, headers: dict[str, str] | None = None) -> dict:
     request = Request(url, headers={"User-Agent": "autonomous-video-assembler/0.1", **(headers or {})})
@@ -161,4 +163,10 @@ def search_sources_detailed(query: str, limit: int = 8) -> dict:
             errors.append({"source": source_name, "error": str(exc)})
         if len(results) >= limit:
             break
-    return {"options": results[:limit], "errors": errors}
+    # Hosts that only ever return watermarked stock, catalogue shots on white or
+    # AI pictures are dropped here, before a human or the renderer sees them.
+    kept = filter_candidates(results)
+    dropped = len(results) - len(kept)
+    if dropped:
+        errors.append({"source": "guards", "error": f"{dropped} candidate(s) from banned hosts dropped"})
+    return {"options": kept[:limit], "errors": errors}

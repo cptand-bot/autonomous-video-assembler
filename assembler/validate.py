@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections import Counter
 
+from .guards import storyboard_warnings
+
 
 def validate_payload(payload: dict) -> list[str]:
     errors: list[str] = []
@@ -48,3 +50,15 @@ def assert_valid(payload: dict) -> None:
     errors = validate_payload(payload)
     if errors:
         raise ValueError("Invalid scenes payload: " + "; ".join(errors))
+
+
+def storyboard_review(payload: dict, narration_sec: float | None = None) -> list[str]:
+    """Norms a storyboard must satisfy before anything is fetched.
+
+    Separate from `validate_payload` on purpose: that one answers "is this file
+    well-formed", this one answers "is this a storyboard we can shoot". The
+    second question is where the expensive defects live - scene count against
+    the narration, drawn-card spacing, stock share, query mines, and one object
+    ordered many times with different wording.
+    """
+    return storyboard_warnings(payload.get("scenes") or [], narration_sec)

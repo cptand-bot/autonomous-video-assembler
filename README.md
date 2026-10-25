@@ -38,3 +38,25 @@ python -m assembler.pipeline --root build --approve --captions --audio voice.mp3
 Без `--approve` создаётся только `pipeline_state.json` со статусом `review_required`; MP4 не собирается.
 
 В Actions review-файлы и финальный MP4 публикуются разными артефактами. Финальный артефакт имеет короткий срок хранения и содержит только MP4 и манифесты рендера.
+
+## Guards (`assembler/guards.py`)
+
+The pipeline reproduces the path; `guards.py` carries the filters that reject
+bad material before a human sees it. Every threshold comes from a measurement
+on real builds:
+
+| guard | what it refuses | why |
+|---|---|---|
+| `filter_candidates` | hosts that only return watermarked stock, catalogue shots on white or AI pictures | these pass an "is it a real photo" check at thumbnail size |
+| `load_bans` / `banned_files` | a frame banned earlier, anywhere in the build | a banned frame returns through the **cache**, not through search; and the list changes while a build is in flight |
+| `quality_warnings` | width under 1600 px, density under 0.08 B/px | a narrow frame is stretched to 1920 and the person stops being recognisable |
+| `lint_query` | ~13 classes of query that reliably return junk, plus non-Russian press queries | the defect is ordered *by the query*, so it cannot be audited away afterwards |
+| `cross_check_queries` | the same query on two layers | search honestly returns one file for one meaning |
+| `repeated_objects` | one object ordered many times with different wording | 35 scenes out of 69 on five objects, with 64 of 64 query strings unique |
+| `storyboard_warnings` | scene count against narration, card spacing, stock share | the storyboard is where cheap fixes live; after the fetch they cost rounds |
+| `check_round` / `record_round` | a third fix round, and a reworded query on an already-replaced scene | a round costs ~3 min regardless of size, and a quarter of replacements were rewordings |
+
+`validate.storyboard_review(payload, narration_sec)` answers "is this a
+storyboard we can shoot", separately from `validate_payload`, which answers "is
+this file well-formed". `selfcheck.check_job` runs the ban sweep and the
+quality sweep last, on purpose.
