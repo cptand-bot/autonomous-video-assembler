@@ -13,3 +13,5 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('actions/download-artifact@v4', workflow)
         self.assertIn('permissions:', workflow)
         self.assertGreaterEqual(workflow.count('retention-days: 1'), 3)
+        self.assertIn('Check optional API configuration', workflow)
+        self.assertNotIn('echo "$PEXELS_API_KEY"', workflow)
