@@ -21,6 +21,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   storyboard:
     runs-on: ubuntu-latest
@@ -34,6 +37,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: storyboard
+          retention-days: 1
           path: build/
 
   fetch-review:
@@ -54,6 +58,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: review
+          retention-days: 1
           path: build/
 
   render:

@@ -11,3 +11,5 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('fetch-review:', workflow)
         self.assertIn('needs: fetch-review', workflow)
         self.assertIn('actions/download-artifact@v4', workflow)
+        self.assertIn('permissions:', workflow)
+        self.assertGreaterEqual(workflow.count('retention-days: 1'), 3)
