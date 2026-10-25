@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 from .storage import JobStore
 from .collectors import search_sources_detailed
 from .media import MediaError, add_manifest_metadata, download_image, download_video, normalize_image, write_image
+from .dashboard import render_review
 
 
 class ReviewHandler(BaseHTTPRequestHandler):
@@ -34,7 +35,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self._json(200, self.store.state())
             return
         if parsed.path in ("/review.html", "/"):
-            page = (self.store.root / "review.html").read_bytes()
+            payload = json.loads((self.store.root / "scenes.json").read_text(encoding="utf-8"))
+            page = render_review(payload).encode("utf-8")
             self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.end_headers(); self.wfile.write(page)
             return
         if parsed.path.startswith("/images/") or parsed.path.startswith("/overlays/") or parsed.path.startswith("/videos/"):
@@ -149,8 +151,17 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self.send_error(404)
 
 
-def serve(root: Path, host: str = "127.0.0.1", port: int = 8790) -> None:
+def serve(root: Path, host: str = "127.0.0.1", port: int = 8790, tries: int = 20) -> None:
     ReviewHandler.store = JobStore(root)
-    server = ThreadingHTTPServer((host, port), ReviewHandler)
-    print(f"Review server: http://{host}:{port}/review.html")
-    server.serve_forever()
+    import errno
+    for candidate in range(port, port + tries):
+        try:
+            server = ThreadingHTTPServer((host, candidate), ReviewHandler)
+        except OSError as exc:
+            if exc.errno in (errno.EADDRINUSE, errno.EACCES):
+                continue
+            raise
+        print(f"Review server: http://{host}:{candidate}/review.html  (root={root})", flush=True)
+        server.serve_forever()
+        return
+    raise SystemExit(f"no free localhost port in {port}..{port + tries - 1}")
