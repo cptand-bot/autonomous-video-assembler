@@ -114,6 +114,16 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
             for variant in record.get("variants", []):
                 if variant.get("kind") == "photo":
                     variant.update({"status": "ready", "src": photo.get("src", "remote"), "full": photo["full"]})
+            try:
+                data, width, height, _ = download_image(photo["full"], minimum=800)
+                entry = write_image(root, sid, data, target="overlay", source=photo.get("src", "remote"))
+                record["photo"] = entry["path"]
+                record["photo_width"] = width
+                record["photo_height"] = height
+                record["photo_candidate"]["path"] = entry["path"]
+            except Exception as exc:
+                record["photo_candidate"]["status"] = "download_failed"
+                record["photo_candidate"]["error"] = str(exc)
     overlay_path.write_text(json.dumps(overlays, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     manifest_data = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
     failed = sum(1 for scene in scenes if not str(scene.get("source", "")).startswith("card:") and manifest_data.get(str(scene["id"]), {}).get("status") != "ok")
