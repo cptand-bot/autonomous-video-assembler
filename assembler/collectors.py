@@ -158,10 +158,16 @@ def search_sources_detailed(query: str, limit: int = 8) -> dict:
     # Image waterfall: each source contributes a fresh batch.  Keeping only the
     # first Yandex batch made the fallback sources unreachable whenever Yandex
     # returned eight small or duplicate candidates.
-    per_source = max(1, limit)
+    # A source can return a long run of thumbnails below the quality floor.
+    # Fetch a larger batch per source so the downloader can reach later, usable
+    # candidates instead of exhausting eight small results.
+    per_source = max(24, limit)
     for source_name, fn in (("yandex", search_yandex), ("google", search_google), ("ddg", search_ddg_images), ("archive", search_archive)):
         try:
-            results.extend(fn(query, limit=per_source))
+            batch = fn(query, limit=per_source)
+            if not batch:
+                errors.append({"source": source_name, "error": "no direct image candidates returned"})
+            results.extend(batch)
         except Exception as exc:
             errors.append({"source": source_name, "error": str(exc)})
     # Hosts that only ever return watermarked stock, catalogue shots on white or
