@@ -95,10 +95,10 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     failed = sum(1 for scene in scenes if not str(scene.get("source", "")).startswith("card:") and manifest_data.get(str(scene["id"]), {}).get("status") != "ok")
     report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "failed": failed, "errors": errors, "scene_results": scene_results}
     (root / "fetch_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    if download and scenes and failed / max(1, len([s for s in scenes if not str(s.get("source", "")).startswith("card:")])) > 0.25:
-        raise MediaError(f"too many failed scenes: {failed}/{len(scenes)}")
     if download:
         write_static_review(root)
+    if download and scenes and failed / max(1, len([s for s in scenes if not str(s.get("source", "")).startswith("card:")])) > 0.25:
+        raise MediaError(f"too many failed scenes: {failed}/{len(scenes)}")
     return report
 
 
