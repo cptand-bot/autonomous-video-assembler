@@ -43,26 +43,21 @@ def build_search_query(text: str, used: set[str], topic: str = "") -> str:
     This is a conservative fallback for SRT-only runs. GEO2/curated storyboard
     queries remain authoritative when supplied by an upstream agent.
     """
-    if "starlink" in topic.lower() and used is not None:
-        index = len(used)
-        if index < len(_STARLINK_OBJECTS):
-            return f"{_STARLINK_OBJECTS[index]}, {topic}, реальное фото"
     words = []
     for raw in text.replace("—", " ").replace("–", " ").split():
         word = raw.strip(".,!?;:\"()[]{}«»").lower()
         if len(word) >= 4 and word not in _STOPWORDS and word not in words:
             words.append(word)
     candidates = []
-    anchor = " ".join(topic.split()[:4]).strip()
     for start in range(max(1, len(words) - 1)):
         if start + 1 < len(words):
-            candidates.append(f"{words[start]} {words[start + 1]} {anchor} реальное фото".strip())
+            candidates.append(f"{words[start]} {words[start + 1]} реальное фото".strip())
     for query in candidates:
         if query not in used and " ".join(query.split()[:3]) not in {" ".join(x.split()[:3]) for x in used}:
             return query
     # Keep the query distinct without using a scene number or service wording.
     tail = next((w for w in words[3:] if w not in used), "событие")
-    return f"{anchor or 'реальное фото'} {tail} {words[0] if words else 'событие'}".strip()
+    return f"{tail} {words[0] if words else 'событие'} реальное фото".strip()
 
 
 def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
