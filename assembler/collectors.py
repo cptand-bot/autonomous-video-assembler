@@ -155,18 +155,19 @@ def search_sources(query: str, limit: int = 8) -> list[dict]:
 def search_sources_detailed(query: str, limit: int = 8) -> dict:
     results: list[dict] = []
     errors: list[dict] = []
-    # Editorial waterfall for this project: web discovery first, archive last.
-    for source_name, fn in (("yandex", search_yandex), ("ddg", search_ddg_images), ("archive", search_archive)):
+    # Image waterfall: each source contributes a fresh batch.  Keeping only the
+    # first Yandex batch made the fallback sources unreachable whenever Yandex
+    # returned eight small or duplicate candidates.
+    per_source = max(1, limit)
+    for source_name, fn in (("yandex", search_yandex), ("google", search_google), ("ddg", search_ddg_images), ("archive", search_archive)):
         try:
-            results.extend(fn(query, limit=max(1, limit - len(results))))
+            results.extend(fn(query, limit=per_source))
         except Exception as exc:
             errors.append({"source": source_name, "error": str(exc)})
-        if len(results) >= limit:
-            break
     # Hosts that only ever return watermarked stock, catalogue shots on white or
     # AI pictures are dropped here, before a human or the renderer sees them.
     kept = filter_candidates(results)
     dropped = len(results) - len(kept)
     if dropped:
         errors.append({"source": "guards", "error": f"{dropped} candidate(s) from banned hosts dropped"})
-    return {"options": kept[:limit], "errors": errors}
+    return {"options": kept[: max(limit * 4, limit)], "errors": errors}
