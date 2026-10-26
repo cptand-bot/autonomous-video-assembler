@@ -39,6 +39,7 @@ def validate_payload(payload: dict) -> list[str]:
     if len(set(ids)) != len(ids):
         errors.append("scene ids must be unique")
     non_cards = [query for scene, query in zip(scenes, queries) if not str(scene.get("source", "")).startswith("card:")]
+    non_cards = [query for query in non_cards if str(query or "").strip()]
     if len(non_cards) != len(set(non_cards)):
         errors.append("non-card source_query values must be unique")
     if len(durations) > 1 and len(set(durations)) == 1:

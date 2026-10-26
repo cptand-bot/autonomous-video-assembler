@@ -196,9 +196,14 @@ _NON_RU_LETTERS = re.compile(r"[іїєґ]")
 _CYRILLIC = re.compile(r"[а-яёА-ЯЁ]")
 _TRANSPORT = re.compile(r"traffic|road|street|train|subway|truck|motorway|platform")
 _CLOSEUP = re.compile(r"closeup|close-up|macro|detail|texture|reflection")
+_ANCHOR_WORDS = {
+    "росси", "украин", "сша", "американ", "европ", "москв", "киев", "донецк",
+    "луган", "одесс", "берлин", "лондон", "кремл", "мид", "парламент", "министер",
+    "порт", "аэропорт", "станци", "терминал", "завод", "бундестаг", "маск", "starlink",
+}
 
 
-def lint_query(query: str, source: str) -> list[str]:
+def lint_query(query: str, source: str, scene_text: str | None = None) -> list[str]:
     """Hard findings only. Returns a list of human-readable problems."""
     problems: list[str] = []
     text = (query or "").strip()
@@ -222,7 +227,31 @@ def lint_query(query: str, source: str) -> list[str]:
     for pattern, gets, fix in QUERY_MINES:
         if re.search(pattern, low):
             problems.append(f"mine «{pattern}»: {gets} -> {fix}")
+    words = re.findall(r"[а-яёa-z]{4,}", text)
+    normalized = [word.lower() for word in words]
+    has_capital_anchor = any(re.match(r"^[А-ЯЁA-Z][а-яёa-z-]{3,}$", word) for word in re.findall(r"[А-ЯЁA-Zа-яёa-z-]+", text))
+    if not has_capital_anchor and not any(any(root in word for root in _ANCHOR_WORDS) for word in normalized):
+        problems.append("query has no geographic, institutional, or named anchor")
+    if scene_text:
+        scene_words = re.findall(r"[а-яёa-z]{4,}", scene_text.lower())
+        if _ordered_overlap(normalized, scene_words) >= 3:
+            problems.append("source_query is a slice of narration")
     return problems
+
+
+def _ordered_overlap(query_words: list[str], scene_words: list[str]) -> int:
+    """Longest ordered run of query words found in the narration."""
+    best = current = 0
+    pos = 0
+    for word in query_words:
+        found = next((i for i in range(pos, len(scene_words)) if scene_words[i] == word), None)
+        if found is None:
+            current = 0
+        else:
+            current += 1
+            pos = found + 1
+            best = max(best, current)
+    return best
 
 
 def cross_check_queries(entries: list[tuple[str, str]]) -> list[str]:
@@ -333,7 +362,7 @@ def storyboard_warnings(scenes: list[dict], narration_sec: float | None = None) 
 
     problems.extend(repeated_objects(scenes))
     for scene in scenes:
-        for issue in lint_query(str(scene.get("source_query", "")), str(scene.get("source", ""))):
+        for issue in lint_query(str(scene.get("source_query", "")), str(scene.get("source", "")), str(scene.get("text", ""))):
             problems.append(f"scene {scene.get('id')}: {issue}")
     problems.extend(cross_check_queries(
         [(f"scene {s.get('id')}", str(s.get("source_query", ""))) for s in scenes]))

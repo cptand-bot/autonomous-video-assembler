@@ -79,6 +79,15 @@ class QueryLintTests(unittest.TestCase):
         self.assertTrue(any("Russian" in problem for problem in problems))
         self.assertFalse(guards.lint_query("здание Министерства обороны России, реальное фото 2026", "press_photo"))
 
+    def test_rejects_narration_slice_and_accepts_anchored_query(self):
+        scene = "Тестовая первая сцена здесь проверяет непрерывность таймкодов."
+        self.assertTrue(guards.lint_query(
+            "реальное фото тестовая первая сцена здесь проверяется непрерывность",
+            "press_photo", scene_text=scene))
+        self.assertEqual(guards.lint_query(
+            "здание Министерства обороны России фасад реальное фото",
+            "press_photo"), [])
+
     def test_card_text_is_not_linted(self):
         self.assertEqual(guards.lint_query("Поджечь забор можно быстро", "card:quote"), [])
 

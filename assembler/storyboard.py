@@ -59,15 +59,17 @@ def build_scenes(cues: list[Cue], channel: str) -> dict:
         start = 0.0 if index == 1 else scenes[-1]["start_sec"] + scenes[-1]["duration_sec"]
         duration = round(group[-1].end - group[0].start, 3)
         text = " ".join(c.text.strip() for c in group).strip()
-        query = build_search_query(text, used_queries)
-        used_queries.add(query)
+        # SRT alone does not contain enough editorial context to safely invent
+        # an object/location query. Leave it empty; the storyboard gate will
+        # require a curated query before any network fetch is allowed.
+        query = ""
         scenes.append(
             {
                 "id": index,
                 "text": text,
                 "start_sec": round(start, 3),
                 "duration_sec": duration,
-                "visual_prompt": f"Реальный новостной кадр по предмету: {query}",
+                "visual_prompt": "Требуется предметный редакционный запрос",
                 "source": "press_photo",
                 "source_query": query,
             }

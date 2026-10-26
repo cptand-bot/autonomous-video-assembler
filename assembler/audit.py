@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from .guards import lint_query
+
 
 FORBIDDEN = ("документальный кадр", "общий план", "сцена№")
 MINE_WORDS = ("окоп", "траншея", "блиндаж", "землянка", "наблюдательный пункт", "полевой лагерь", "авария", "взрыв", "сгоревший", "топливо", "валюта", "доллары", "конвейер", "assembly line", "флаг у здания")
@@ -32,6 +34,7 @@ def audit_storyboard(root: Path) -> list[str]:
     if cards and len(cards) > max(1, len(scenes) // 15 + 1):
         errors.append(f"too many cards: {len(cards)}")
     queries = [str(s.get("source_query", "")).strip().lower() for s in scenes if not str(s.get("source", "")).startswith("card:")]
+    queries = [q for q in queries if q]
     if len(queries) != len(set(queries)):
         errors.append("duplicate source_query")
     heads = [" ".join(q.split()[:3]) for q in queries]
@@ -43,6 +46,8 @@ def audit_storyboard(root: Path) -> list[str]:
             errors.append(f"one object requested on too many scenes: {head}")
     for scene in scenes:
         query = str(scene.get("source_query", "")).lower()
+        if not str(scene.get("source", "")).startswith("card:") and not query.strip():
+            errors.append(f"scene {scene.get('id')}: missing curated source_query")
         narration = str(scene.get("text", "")).strip().lower()
         if query and narration and query[:40].strip() == narration[:40].strip():
             errors.append(f"scene {scene.get('id')}: source_query is a slice of narration")
@@ -50,8 +55,11 @@ def audit_storyboard(root: Path) -> list[str]:
             errors.append(f"scene {scene.get('id')}: service wording in source_query")
         if any(word in query for word in MINE_WORDS):
             errors.append(f"scene {scene.get('id')}: dangerous search term in source_query")
-        if not str(scene.get("source", "")).startswith("card:") and not any(word in query for word in ANCHOR_WORDS):
+        if query and not str(scene.get("source", "")).startswith("card:") and not any(word in query for word in ANCHOR_WORDS):
             warnings.append(f"scene {scene.get('id')}: query has no geographic, institutional, or named anchor")
+        for issue in lint_query(str(scene.get("source_query", "")), str(scene.get("source", "")), str(scene.get("text", ""))):
+            if issue not in {"query has no geographic, institutional, or named anchor"}:
+                errors.append(f"scene {scene.get('id')}: {issue}")
     return errors + [f"WARNING: {x}" for x in warnings]
 
 
