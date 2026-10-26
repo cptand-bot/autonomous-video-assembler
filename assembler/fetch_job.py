@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .collectors import search_sources_detailed, search_pexels_video
 from .media import download_image, download_video, write_image, MediaError
-from .dashboard import write_static_review
+from .dashboard import write_static_review, render_review
 from .overlays import write_overlay_plan
 
 
@@ -142,6 +142,8 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                 record["photo_candidate"]["status"] = "download_failed"
                 record["photo_candidate"]["error"] = str(exc)
     overlay_path.write_text(json.dumps(overlays, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    payload["overlays"] = overlays
+    (root / "review.html").write_text(render_review(payload), encoding="utf-8")
     manifest_data = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
     failed = sum(1 for scene in scenes if not str(scene.get("source", "")).startswith("card:") and manifest_data.get(str(scene["id"]), {}).get("status") != "ok")
     report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "failed": failed, "errors": errors, "scene_results": scene_results, "overlays": overlay_stats}
