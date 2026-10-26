@@ -34,37 +34,47 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
         errors.extend({"scene": sid, **error} for error in result["errors"])
         if download:
             candidates = list(options[sid])
-            for candidate in candidates:
-                url = candidate.get("full")
-                if not url or candidate.get("kind") == "web":
-                    scene_results[sid]["rejections"].append("not_direct_media")
-                    continue
-                if candidate.get("kind") == "photo" and not re.search(r"\.(?:jpe?g|png|webp)(?:\?|$)", url, re.I):
-                    scene_results[sid]["rejections"].append("url_has_no_image_extension")
-                    continue
-                if url in used_urls:
-                    scene_results[sid]["rejections"].append("duplicate_url")
-                    continue
-                try:
-                    if candidate.get("kind") == "video":
-                        entry = download_video(url, root, sid, candidate.get("src", "remote"))
-                    else:
-                        data, *_ = download_image(url, minimum=1600)
-                        entry = write_image(root, sid, data, source=candidate.get("src", "remote"))
-                    if entry.get("md5") in used_md5:
-                        Path(root / entry["path"]).unlink(missing_ok=True)
-                        current = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
-                        current.pop(str(sid), None)
-                        manifest.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-                        continue
-                    used_md5.add(entry.get("md5", ""))
-                    used_urls.add(url)
-                    downloaded += 1
-                    scene_results[sid].update({"status": "ok", "source": entry.get("source"), "path": entry.get("path"), "width_checked": 1600})
+            for minimum, warning in ((1600, None), (900, "below_threshold")):
+                if scene_results[sid]["status"] == "ok":
                     break
-                except Exception as exc:
-                    errors.append({"scene": sid, "source": candidate.get("src", "unknown"), "error": str(exc)})
-                    scene_results[sid]["rejections"].append(f"{candidate.get('src', 'unknown')}: {type(exc).__name__}: {exc}")
+                for candidate in candidates:
+                    url = candidate.get("full")
+                    if not url or candidate.get("kind") == "web":
+                        scene_results[sid]["rejections"].append("not_direct_media")
+                        continue
+                    if candidate.get("kind") == "photo" and not re.search(r"\.(?:jpe?g|png|webp)(?:\?|$)", url, re.I):
+                        scene_results[sid]["rejections"].append("url_has_no_image_extension")
+                        continue
+                    if url in used_urls:
+                        scene_results[sid]["rejections"].append("duplicate_url")
+                        continue
+                    try:
+                        if candidate.get("kind") == "video":
+                            entry = download_video(url, root, sid, candidate.get("src", "remote"))
+                        else:
+                            data, width, height, _ = download_image(url, minimum=minimum)
+                            entry = write_image(root, sid, data, source=candidate.get("src", "remote"))
+                            if warning:
+                                entry["warning"] = warning
+                                entry["width"] = width
+                                entry["height"] = height
+                                current = json.loads(manifest.read_text(encoding="utf-8"))
+                                current[str(sid)].update({"warning": warning, "width": width, "height": height})
+                                manifest.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                        if entry.get("md5") in used_md5:
+                            Path(root / entry["path"]).unlink(missing_ok=True)
+                            current = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+                            current.pop(str(sid), None)
+                            manifest.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                            continue
+                        used_md5.add(entry.get("md5", ""))
+                        used_urls.add(url)
+                        downloaded += 1
+                        scene_results[sid].update({"status": "ok", "source": entry.get("source"), "path": entry.get("path"), "width_checked": minimum, "warning": warning})
+                        break
+                    except Exception as exc:
+                        errors.append({"scene": sid, "source": candidate.get("src", "unknown"), "error": str(exc), "minimum": minimum})
+                        scene_results[sid]["rejections"].append(f"{candidate.get('src', 'unknown')}: {type(exc).__name__}: {exc}")
             # Pexels is never an implicit fallback. It is allowed only when the
             # storyboard explicitly opted this scene into video stock.
             if scene.get("source") == "pexels_video" and not any(str(sid) == str(k) for k in (json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {})):
