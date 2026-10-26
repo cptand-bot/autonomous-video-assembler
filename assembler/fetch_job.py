@@ -72,7 +72,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                         used_md5.add(entry.get("md5", ""))
                         used_urls.add(url)
                         downloaded += 1
-                        scene_results[sid].update({"status": "ok", "source": entry.get("source"), "path": entry.get("path"), "width_checked": minimum, "warning": warning})
+                        scene_results[sid].update({"status": "ok", "source": entry.get("source"), "path": entry.get("path"), "url": url, "width_checked": minimum, "warning": warning})
                         break
                     except Exception as exc:
                         errors.append({"scene": sid, "source": candidate.get("src", "unknown"), "error": str(exc), "minimum": minimum})
