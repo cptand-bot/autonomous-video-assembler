@@ -8,6 +8,7 @@ from pathlib import Path
 from .collectors import search_sources_detailed, search_pexels_video
 from .media import download_image, download_video, write_image, MediaError
 from .dashboard import write_static_review
+from .overlays import write_overlay_plan
 
 
 def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
@@ -20,6 +21,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     scene_results: dict[str, dict] = {}
     manifest = root / "images" / "manifest.json"
     scenes = payload.get("scenes", [])
+    write_overlay_plan(root, scenes)
     total_scenes = len(scenes)
     for position, scene in enumerate(scenes, start=1):
         sid = str(scene["id"])
@@ -101,6 +103,18 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                 scene_results[sid]["status"] = "FAILED"
         print(f"PROGRESS {position}/{total_scenes} scene={sid} downloaded={downloaded}", flush=True)
     (root / "search_options.json").write_text(json.dumps(options, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    overlay_path = root / "overlays.json"
+    overlays = json.loads(overlay_path.read_text(encoding="utf-8")) if overlay_path.exists() else {}
+    for sid, record in overlays.items():
+        if sid == "anchor" or not isinstance(record, dict) or not record.get("planned"):
+            continue
+        photo = next((item for item in options.get(sid, []) if item.get("kind") == "photo" and item.get("full")), None)
+        if photo:
+            record["photo_candidate"] = {"full": photo["full"], "src": photo.get("src", "remote"), "selected": False}
+            for variant in record.get("variants", []):
+                if variant.get("kind") == "photo":
+                    variant.update({"status": "ready", "src": photo.get("src", "remote"), "full": photo["full"]})
+    overlay_path.write_text(json.dumps(overlays, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     manifest_data = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
     failed = sum(1 for scene in scenes if not str(scene.get("source", "")).startswith("card:") and manifest_data.get(str(scene["id"]), {}).get("status") != "ok")
     report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "failed": failed, "errors": errors, "scene_results": scene_results}
