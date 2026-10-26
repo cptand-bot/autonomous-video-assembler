@@ -3,19 +3,36 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .storyboard import _stem, scene_subjects
+
 _VISUAL_MARKERS = re.compile(r"\b(карта|маршрут|границ|дальность|скорость|процент|километр|миллион|дата|направлени)\w*\b", re.I)
 _PROPER_NAME = re.compile(r"\b[А-ЯЁ][а-яё]{2,}(?:\s+[А-ЯЁ][а-яё]{2,})?\b")
 
 
-def _quote(text: str) -> str:
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text or "")]
-    for sentence in sentences:
-        if 60 <= len(sentence) <= 140:
-            return sentence
-    clean = " ".join((text or "").split())
-    if len(clean) <= 140:
-        return clean
-    return clean[:137].rsplit(" ", 1)[0] + "…"
+_NUMBER = re.compile(
+    r"\b(\d[\d\s.,]*|один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять|"
+    r"одиннадцать|двенадцать|двадцать|тридцать|сорок|пятьдесят|шестьдесят|семьдесят|восемьдесят|девяносто|сто|двести|триста|тысяч\w*|миллион\w*|миллиард\w*|процент\w*|десятк\w*|год\w*|часов|суток|дней|дня)\b", re.I
+)
+MAX_CAPTION_WORDS = 5
+
+
+def short_fact(text: str) -> str:
+    """Короткая надпись: ЧИСЛО или ФАКТ, 3-5 слов капсом. Не пересказ.
+
+    Было: в надпись уезжала дословная копия фразы, которая в эту же секунду
+    звучит — целое предложение на 60-140 знаков. Всплывашка обязана ДОБАВЛЯТЬ,
+    а повтор закадрового текста не добавляет ничего. Нет числа или факта —
+    надписи на этой сцене нет вовсе.
+    """
+    words = " ".join((text or "").split()).split()
+    for index, word in enumerate(words):
+        if not _NUMBER.fullmatch(word.strip(".,;:!?»«()")):
+            continue
+        chunk = words[index:index + MAX_CAPTION_WORDS]
+        phrase = " ".join(w.strip(".,;:!?»«()") for w in chunk).strip()
+        if 2 <= len(phrase.split()) <= MAX_CAPTION_WORDS:
+            return phrase.upper()
+    return ""
 
 
 def plan_overlays(scenes: list[dict], existing: dict | None = None, channel: str = "") -> tuple[dict, dict]:
@@ -34,20 +51,32 @@ def plan_overlays(scenes: list[dict], existing: dict | None = None, channel: str
         stats["proposed"] += 1
         text = str(scene.get("text", ""))
         query = str(scene.get("source_query", ""))
-        if not query or len(text.strip()) < 60:
-            reason = "no_concrete_scene_subject"
-        elif _VISUAL_MARKERS.search(text) or _PROPER_NAME.search(text):
-            reason = ""
-        else:
-            reason = "no_answer_to_what_it_illustrates"
-        if reason:
+
+        def reject(reason: str) -> None:
             stats["rejected"] += 1
             stats["rejected_by_subtype"][reason] = stats["rejected_by_subtype"].get(reason, 0) + 1
+
+        if not query or len(text.strip()) < 60:
+            reject("no_concrete_scene_subject")
             continue
+        # ЧТО ОНО ИЛЛЮСТРИРУЕТ: предмет должен быть НАЗВАН В ЭТОЙ СЦЕНЕ и
+        # ОТСУТСТВОВАТЬ В БАЗЕ. Содержимое базы берём из её запроса — иначе
+        # правило «добавляет то, чего в базе нет» вообще нереализуемо.
+        base = _stem(query.split()[0]) if query.split() else ""
+        addition = next((s for s in scene_subjects(text) if _stem(s) != base), "")
+        fact = short_fact(text)
+        if not addition and not fact:
+            reject("no_answer_to_what_it_illustrates")
+            continue
+        if addition and _stem(addition) == base:
+            reject("same_semantic_layer")
+            continue
+        # Разрежение — служебное ограничение, и причина у него СВОЯ: смешивать
+        # его с «тот же смысловой слой» нельзя, иначе цифра отчёта врёт.
         if chosen and int(scene["id"]) - int(chosen[-1]["id"]) < 9:
-            stats["rejected"] += 1
-            stats["rejected_by_subtype"]["same_layer_or_too_close"] = stats["rejected_by_subtype"].get("same_layer_or_too_close", 0) + 1
+            reject("too_close_to_previous")
             continue
+        scene = {**scene, "_addition": addition, "_fact": fact}
         chosen.append(scene)
     for index, scene in enumerate(chosen):
         stats["accepted"] += 1
@@ -67,8 +96,9 @@ def plan_overlays(scenes: list[dict], existing: dict | None = None, channel: str
             "scale": float(old.get("scale", 1.0)),
             "sound": old.get("sound", "pop"),
             "anchor": old.get("anchor", "top"),
+            "query": scene.get("_addition") or "",
             "text": {
-                "words": _quote(str(scene.get("text", ""))),
+                "words": scene.get("_fact", ""),
                 "color": "white",
                 "font": "default",
                 "pos": "tl" if side == "left" else "tr",
@@ -77,7 +107,7 @@ def plan_overlays(scenes: list[dict], existing: dict | None = None, channel: str
                 "sound": old.get("sound", "pop"),
             },
             "variants": [
-                {"kind": "text", "words": _quote(str(scene.get("text", ""))), "selected": channel != "ПЛАНЕТА"},
+                {"kind": "text", "words": scene.get("_fact", ""), "selected": bool(scene.get("_fact")) and channel != "ПЛАНЕТА"},
                 {"kind": "photo", "status": "optional_candidate", "selected": False},
             ],
         }

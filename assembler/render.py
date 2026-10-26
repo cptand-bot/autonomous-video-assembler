@@ -197,6 +197,10 @@ def text_position(pos: str) -> tuple[str, str]:
 
 
 def card_filter(scene: dict) -> str:
+    # Сцена без предмета съёмки не превращается в пересказ озвучки на экране:
+    # дублировать текст, который и так звучит, запрещено. Короткая пометка.
+    if str(scene.get("source", "")) == "card:manual_query" or scene.get("needs_manual_query"):
+        return "drawtext=text='НУЖЕН КАДР ДЛЯ ЭТОЙ СЦЕНЫ':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=64:fontcolor=0xf59e0b"
     text = str(scene.get("text", "")).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'").replace("%", "\\%")
     return f"drawtext=text='{text}':x=120:y=(h-text_h)/2:fontsize=56:fontcolor=white:line_spacing=18"
 

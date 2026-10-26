@@ -10,10 +10,20 @@ from assembler.pipeline import run_pipeline
 
 class PipelineTests(unittest.TestCase):
     def test_plans_text_overlays_with_spacing_and_complete_fields(self):
-        scenes = [{"id": i, "duration_sec": 11.5, "source": "press_photo", "source_query": "объект события", "text": "Это законченная фраза о событии и его последствиях для города и людей."} for i in range(1, 40)]
+        # Сцена без НАЗВАННОГО предмета и без числа всплывашки не получает:
+        # иначе в надпись уезжает пересказ озвучки, а это не иллюстрация.
+        empty = [{"id": i, "duration_sec": 11.5, "source": "press_photo", "source_query": "объект события", "text": "Это законченная фраза о событии и его последствиях для города и людей."} for i in range(1, 40)]
+        _, empty_stats = plan_overlays(empty, channel="5 МИНУТ")
+        self.assertEqual(empty_stats["accepted"], 0)
+        self.assertEqual(empty_stats["rejected_by_subtype"]["no_answer_to_what_it_illustrates"], 39)
+        # А сцена с числом и с предметом, которого нет в базе, — получает.
+        scenes = [{"id": i, "duration_sec": 11.5, "source": "press_photo", "source_query": "объект события",
+                   "text": "За три дня компания Starlink отключила терминалы на участке фронта и связь пропала."} for i in range(1, 40)]
         overlays, stats = plan_overlays(scenes, channel="5 МИНУТ")
         ids = [int(k) for k in overlays if k != "anchor"]
         self.assertGreaterEqual(len(ids), 1)
+        # Разрежение имеет СВОЮ причину, не смешанную со смысловым слоем.
+        self.assertIn("too_close_to_previous", stats["rejected_by_subtype"])
         self.assertEqual(stats["proposed"], 39)
         self.assertEqual(stats["accepted"], len(ids))
         self.assertGreaterEqual(ids[1] - ids[0], 9)

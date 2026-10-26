@@ -161,5 +161,37 @@ class ArtifactStaysOpenableByAHuman(unittest.TestCase):
             self.assertEqual(manifest["scene_count"], 1)
 
 
+
+
+class HonestInsteadOfInvented(unittest.TestCase):
+    def test_scene_without_a_named_subject_gets_no_invented_query(self):
+        # Было: из двух слов озвучки лепился запрос «правильные произносит
+        # реальное фото» — кадр ни о чём. Пустая честная пометка лучше.
+        self.assertEqual(build_search_query("Это общая фраза без имён и предметов.", set()), "")
+
+    def test_scene_with_a_named_subject_gets_it(self):
+        self.assertEqual(build_search_query("Вчера Starlink отключили.", set()), "Starlink реальное фото")
+
+    def test_media_outlet_is_not_a_subject(self):
+        # Источники и агрегаторы на экран не попадают никогда; как запрос они
+        # дают логотип редакции вместо события.
+        self.assertEqual(build_search_query("Об этом пишет The New York Times.", set()), "")
+
+    def test_every_source_reports_its_own_count(self):
+        # Было: три источника из четырёх возвращали ноль И НЕ СООБЩАЛИ ОБ
+        # ОШИБКЕ — мёртвый парсер был неотличим от «ничего не нашлось».
+        source = Path("assembler/collectors.py").read_text(encoding="utf-8")
+        self.assertIn("per_source", source)
+        self.assertNotIn("    except Exception:\n        return []", source)
+
+    def test_overlay_rejection_reasons_are_not_mixed(self):
+        # Было: одна причина same_layer_or_too_close на два разных повода, и
+        # 46 отказов из 49 оказывались «по шагу» — цифра отчёта врала.
+        source = Path("assembler/overlays.py").read_text(encoding="utf-8")
+        self.assertIn("too_close_to_previous", source)
+        self.assertIn("same_semantic_layer", source)
+        self.assertNotIn("same_layer_or_too_close", source)
+
+
 if __name__ == "__main__":
     unittest.main()

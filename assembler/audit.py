@@ -30,9 +30,21 @@ def audit_storyboard(root: Path) -> list[str]:
         errors.append(f"too many scenes shorter than 5 seconds: {short}")
     if max(durations) > 15:
         errors.append("scene longer than 15 seconds")
-    cards = [s for s in scenes if str(s.get("source", "")).startswith("card:")]
+    # Сцена, ждущая запроса, — это НЕ карточка оформления: она не приём, а
+    # пометка «нужен предмет». Считать её картой и блокировать сборку нельзя:
+    # из одного SRT предмет находится не в каждой сцене, и честная пометка
+    # должна проходить дальше, а не валить прогон.
+    pending = [s for s in scenes if str(s.get("source", "")) == "card:manual_query" or s.get("needs_manual_query")]
+    pending_ids = {id(s) for s in pending}
+    cards = [s for s in scenes if str(s.get("source", "")).startswith("card:") and id(s) not in pending_ids]
     if cards and len(cards) > max(1, len(scenes) // 15 + 1):
         errors.append(f"too many cards: {len(cards)}")
+    if pending:
+        warnings.append(
+            f"{len(pending)} сцен из {len(scenes)} ждут предметного запроса: "
+            + ", ".join(str(s.get("id")) for s in pending[:12])
+            + (" ..." if len(pending) > 12 else "")
+        )
     queries = [str(s.get("source_query", "")).strip().lower() for s in scenes if not str(s.get("source", "")).startswith("card:")]
     queries = [q for q in queries if q]
     if len(queries) != len(set(queries)):

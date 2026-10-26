@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 
 from .srt import Cue
 
@@ -15,27 +16,71 @@ _STOPWORDS = {
 }
 
 
-def build_search_query(text: str, used: set[str], topic: str = "") -> str:
-    """Make a compact object-oriented query, never a narration slice.
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])\s+")
+_WORD = re.compile(r"[А-ЯЁA-Za-zа-яё][А-ЯЁA-Za-zа-яё\-]{2,}")
+# Названия изданий и агрегаторов предметом съёмки НЕ являются и на экран не
+# попадают никогда — отдельное правило. Как поисковый запрос они дают логотип
+# редакции вместо события.
+_NOT_A_SUBJECT = {
+    "the", "new", "york", "times", "post", "news", "reuters", "bloomberg", "axios",
+    "politico", "guardian", "cnn", "bbc", "риа", "тасс", "лента", "рбк", "интерфакс",
+    "unian", "liga", "газета", "издание", "агентство", "телеканал", "корреспондент",
+}
 
-    This is a conservative fallback for SRT-only runs. GEO2/curated storyboard
-    queries remain authoritative when supplied by an upstream agent.
+
+_PRONOUNS = {"эту", "этот", "эта", "эти", "тот", "та", "те", "они", "она", "оно", "мы", "вы", "ты", "он"}
+
+
+def _stem(word: str) -> str:
+    """Грубая основа слова: достаточно, чтобы склонения считались одним предметом."""
+    return word.lower().rstrip("аеёиыоуюяйьъ")[:5] or word.lower()[:5]
+
+
+def scene_subjects(text: str) -> list[str]:
+    """Названные в сцене предметы: имена собственные и латиница.
+
+    Это единственное, что можно достоверно вытащить из одного SRT. Нарицательные
+    слова озвучки предметом НЕ являются: из «операции пришлось остановить»
+    предмет не «операции пришлось». Попытка лепить запрос из двух слов озвучки
+    давала «правильные произносит реальное фото» — кадр ни о чём.
     """
-    words = []
-    for raw in text.replace("—", " ").replace("–", " ").split():
-        word = raw.strip(".,!?;:\"()[]{}«»").lower()
-        if len(word) >= 4 and word not in _STOPWORDS and word not in words:
-            words.append(word)
-    candidates = []
-    for start in range(max(1, len(words) - 1)):
-        if start + 1 < len(words):
-            candidates.append(f"{words[start]} {words[start + 1]} реальное фото".strip())
-    for query in candidates:
-        if query not in used and " ".join(query.split()[:3]) not in {" ".join(x.split()[:3]) for x in used}:
-            return query
-    # Keep the query distinct without using a scene number or service wording.
-    tail = next((w for w in words[3:] if w not in used), "событие")
-    return f"{tail} {words[0] if words else 'событие'} реальное фото".strip()
+    found: list[str] = []
+    for sentence in _SENTENCE_SPLIT.split(text.replace("—", " ").replace("–", " ")):
+        for index, raw in enumerate(_WORD.findall(sentence)):
+            word = raw.strip("-")
+            if len(word) < 3:
+                continue
+            latin = bool(re.fullmatch(r"[A-Za-z][A-Za-z\-]+", word))
+            # Заглавная в начале предложения ничего не значит — пропускаем её.
+            proper = word[0].isupper() and (index > 0 or latin)
+            if word.lower() in _NOT_A_SUBJECT or word.lower() in _PRONOUNS:
+                continue
+            if (proper or latin) and word.lower() not in _STOPWORDS and word not in found:
+                found.append(word)
+    return found
+
+
+def build_search_query(text: str, used: set[str], topic: str = "") -> str:
+    """Запрос СТРОГО из предмета, названного в этой сцене. Иначе — пусто.
+
+    `topic` в построении НЕ участвует: запрос обязан зависеть только от смысла
+    сцены. Ветка по теме ролика или список готовых строк под ролик запрещены —
+    на этом уже обожглись: список из 56 запросов выдавался по НОМЕРУ сцены и
+    осмысленно выглядел ровно на одном ролике.
+
+    Пустая строка — honest-результат, а не ошибка: сцена помечается «нужен
+    ручной запрос» и уходит человеку на дашборд. Пустая пометка ЛУЧШЕ
+    выдуманного кадра: пометку он закроет за десять секунд, а чужую картинку
+    не заметит.
+    """
+    taken = {_stem(x.split()[0]) for x in used if x}
+    for name in scene_subjects(text):
+        # Сравниваем по ОСНОВЕ: «Маск», «Маска», «Маску», «Маском» — один и тот
+        # же предмет, и пять запросов про него вернут один и тот же кадр.
+        if _stem(name) in taken:
+            continue
+        return f"{name} реальное фото"
+    return ""
 
 
 def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
@@ -60,16 +105,24 @@ def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
         duration = round(group[-1].end - group[0].start, 3)
         text = " ".join(c.text.strip() for c in group).strip()
         query = build_search_query(text, used_queries, topic)
-        used_queries.add(query)
-        scenes.append(
-            {
-                "id": index,
-                "text": text,
-                "start_sec": round(start, 3),
-                "duration_sec": duration,
-                "visual_prompt": f"Реальный новостной кадр по предмету: {query}",
-                "source": "press_photo",
-                "source_query": query,
-            }
-        )
+        if query:
+            used_queries.add(query)
+        # Предмета в сцене нет — честная пометка человеку вместо выдуманного
+        # кадра. Такая сцена НЕ идёт в фетч и не считается провалом: человек
+        # закроет её на дашборде, вписав запрос или поставив карточку.
+        scene = {
+            "id": index,
+            "text": text,
+            "start_sec": round(start, 3),
+            "duration_sec": duration,
+            "visual_prompt": (
+                f"Реальный новостной кадр по предмету: {query}" if query
+                else "Нужен ручной запрос: в сцене не назван предмет съёмки"
+            ),
+            "source": "press_photo" if query else "card:manual_query",
+            "source_query": query,
+        }
+        if not query:
+            scene["needs_manual_query"] = True
+        scenes.append(scene)
     return {"channel": channel, "scenes": scenes}

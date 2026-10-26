@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from html import unescape
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -105,8 +106,8 @@ def search_yandex(query: str, limit: int = 8) -> list[dict]:
             out.append({"full": match.group(1).replace("\\/", "/"), "kind": "photo", "src": "yandex"})
             if len(out) >= limit: break
         return out
-    except Exception:
-        return []
+    except Exception as exc:
+        raise RuntimeError(f"yandex недоступен: {type(exc).__name__}: {exc}") from exc
 
 
 def search_google(query: str, limit: int = 8) -> list[dict]:
@@ -126,8 +127,8 @@ def search_ddg_images(query: str, limit: int = 8) -> list[dict]:
         url = "https://duckduckgo.com/i.js?" + urlencode({"l": "us-en", "o": "json", "q": query, "vqd": token.group(1), "f": ",,,,,", "p": "1"})
         data = json.loads(urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0", **headers}), timeout=20).read().decode("utf-8"))
         return [{"full": x["image"], "thumb": x.get("thumbnail"), "w": x.get("width", 0), "h": x.get("height", 0), "kind": "photo", "src": "ddg"} for x in data.get("results", []) if x.get("image")][:limit]
-    except Exception:
-        return []
+    except Exception as exc:
+        raise RuntimeError(f"ddg недоступен: {type(exc).__name__}: {exc}") from exc
 
 
 def _direct_image_results(html: str, source: str, limit: int) -> list[dict]:
@@ -162,18 +163,33 @@ def search_sources_detailed(query: str, limit: int = 8) -> dict:
     # Fetch a larger batch per source so the downloader can reach later, usable
     # candidates instead of exhausting eight small results.
     per_source = max(24, limit)
+    per_source_count: dict[str, int] = {}
     for source_name, fn in (("yandex", search_yandex), ("google", search_google), ("ddg", search_ddg_images), ("archive", search_archive)):
-        try:
-            batch = fn(query, limit=per_source)
-            if not batch:
-                errors.append({"source": source_name, "error": "no direct image candidates returned"})
-            results.extend(batch)
-        except Exception as exc:
-            errors.append({"source": source_name, "error": str(exc)})
+        batch: list[dict] = []
+        # Яндекс — единственный живой источник, и он режет за частоту: на одном
+        # прогоне было от 23 до 112 отказов 403. Поэтому повтор с отступом,
+        # а не «один раз и забыли».
+        attempts = 3 if source_name == "yandex" else 1
+        for attempt in range(attempts):
+            try:
+                batch = fn(query, limit=per_source)
+                break
+            except Exception as exc:
+                last = f"{type(exc).__name__}: {exc}"
+                if attempt + 1 < attempts:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                errors.append({"source": source_name, "error": last, "attempts": attempts})
+        if not batch:
+            errors.append({"source": source_name, "error": "no direct image candidates returned"})
+        per_source_count[source_name] = len(batch)
+        results.extend(batch)
     # Hosts that only ever return watermarked stock, catalogue shots on white or
     # AI pictures are dropped here, before a human or the renderer sees them.
     kept = filter_candidates(results)
     dropped = len(results) - len(kept)
     if dropped:
         errors.append({"source": "guards", "error": f"{dropped} candidate(s) from banned hosts dropped"})
-    return {"options": kept[: max(limit * 4, limit)], "errors": errors}
+    # Сколько дал КАЖДЫЙ источник: иначе мёртвый парсер неотличим от «по
+    # запросу ничего нет», и три источника из четырёх молчали весь день.
+    return {"options": kept[: max(limit * 4, limit)], "errors": errors, "per_source": per_source_count}
