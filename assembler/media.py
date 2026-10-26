@@ -31,7 +31,7 @@ def normalize_image(data: bytes, minimum: int = 200) -> tuple[bytes, int, int, s
     try:
         with Image.open(io.BytesIO(data)) as image:
             width, height = image.size
-            height_minimum = max(800, minimum // 2) if minimum >= 1600 else minimum
+            height_minimum = max(1, minimum // 2)
             if width < minimum or height < height_minimum:
                 raise MediaError(f"image is too small: {width}x{height}")
             converted = image.convert("RGB")
