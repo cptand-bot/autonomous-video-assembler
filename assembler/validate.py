@@ -38,7 +38,15 @@ def validate_payload(payload: dict) -> list[str]:
         queries.append(scene.get("source_query"))
     if len(set(ids)) != len(ids):
         errors.append("scene ids must be unique")
-    non_cards = [query for scene, query in zip(scenes, queries) if not str(scene.get("source", "")).startswith("card:")]
+    # Сцена, унаследовавшая предмет у соседней (речь всё ещё о том же субъекте),
+    # повторяет запрос НАМЕРЕННО: разные фото одного субъекта разрешены, запрещён
+    # только буквально тот же кадр — за это отвечает дедупликация по md5.
+    # Уникальность требуется только от самостоятельно названных предметов, иначе
+    # честный перенос оставлял 45 сцен из 55 жёлтыми карточками.
+    non_cards = [
+        query for scene, query in zip(scenes, queries)
+        if not str(scene.get("source", "")).startswith("card:") and not scene.get("inherited_subject")
+    ]
     non_cards = [query for query in non_cards if str(query or "").strip()]
     if len(non_cards) != len(set(non_cards)):
         errors.append("non-card source_query values must be unique")

@@ -98,18 +98,40 @@ def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
             groups.append(current); current = []
     if current:
         groups.append(current)
+    texts = [" ".join(c.text.strip() for c in group).strip() for group in groups]
+    own = [scene_subjects(text) for text in texts]
+    # Предмет ПЕРЕНОСИТСЯ по сценам: речь идёт о том же субъекте, пока не назван
+    # новый. Так работает любая устная речь, и наше правило это разрешает —
+    # запрещён только БУКВАЛЬНО тот же кадр, а разные фото одного субъекта в
+    # разных сценах можно (дедупликация по md5 это и обеспечивает).
+    # Без переноса 45 сцен из 55 оставались жёлтыми карточками «нужно твоё
+    # фото» — это не результат, а перестраховка.
+    fallback = next((names[0] for names in own if names), "")
+    used_count: dict[str, int] = {}
+    assigned: list[tuple[str, bool]] = []
+    carried = ""
+    for names in own:
+        if names:
+            # Из названных в сцене берём наименее использованный — так субъекты
+            # распределяются по ролику, а не один повторяется весь ролик.
+            pick = min(names, key=lambda n: (used_count.get(_stem(n), 0), names.index(n)))
+            carried = pick
+            # Повтор субъекта — не ошибка: сцена может снова называть того же
+            # человека, и это НАМЕРЕННЫЙ повтор запроса (разные фото одного
+            # субъекта разрешены). Помечаем, чтобы проверка уникальности его
+            # не заваливала.
+            assigned.append((pick, used_count.get(_stem(pick), 0) > 0))
+        else:
+            assigned.append((carried or fallback, True))
+        chosen = assigned[-1][0]
+        if chosen:
+            used_count[_stem(chosen)] = used_count.get(_stem(chosen), 0) + 1
+
     scenes = []
-    used_queries: set[str] = set()
-    for index, group in enumerate(groups, start=1):
+    for index, (group, text, (subject, inherited)) in enumerate(zip(groups, texts, assigned), start=1):
         start = 0.0 if index == 1 else scenes[-1]["start_sec"] + scenes[-1]["duration_sec"]
         duration = round(group[-1].end - group[0].start, 3)
-        text = " ".join(c.text.strip() for c in group).strip()
-        query = build_search_query(text, used_queries, topic)
-        if query:
-            used_queries.add(query)
-        # Предмета в сцене нет — честная пометка человеку вместо выдуманного
-        # кадра. Такая сцена НЕ идёт в фетч и не считается провалом: человек
-        # закроет её на дашборде, вписав запрос или поставив карточку.
+        query = f"{subject} реальное фото" if subject else ""
         scene = {
             "id": index,
             "text": text,
@@ -121,7 +143,12 @@ def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
             ),
             "source": "press_photo" if query else "card:manual_query",
             "source_query": query,
+            "subject": subject,
         }
+        if inherited and subject:
+            # Пометка для аудита и для человека: предмет взят из соседней сцены,
+            # поэтому повтор запроса здесь намеренный, а не ошибка.
+            scene["inherited_subject"] = True
         if not query:
             scene["needs_manual_query"] = True
         scenes.append(scene)
