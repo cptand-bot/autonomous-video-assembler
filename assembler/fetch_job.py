@@ -187,8 +187,11 @@ def main() -> None:
     parser.add_argument("--download", action="store_true")
     args = parser.parse_args()
     report = fetch_job(args.root, args.limit, args.download)
-    if args.download and report["downloaded"] < report["scenes"]:
-        print(json.dumps(report, ensure_ascii=False))
+    print(json.dumps(report, ensure_ascii=False))
+    # Падаем только если кадра нет у сцены, которая его ЖДАЛА. Сцена с
+    # пометкой «нужен ручной запрос» в фетч не идёт и провалом не является:
+    # иначе честная пометка валит весь прогон и человек снова без дашборда.
+    if args.download and report.get("failed"):
         raise SystemExit(2)
     print(json.dumps(report, ensure_ascii=False))
 
