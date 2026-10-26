@@ -105,18 +105,35 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     (root / "search_options.json").write_text(json.dumps(options, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     overlay_path = root / "overlays.json"
     overlays = json.loads(overlay_path.read_text(encoding="utf-8")) if overlay_path.exists() else {}
+    scene_manifest = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+    scene_md5 = {str(k): str(v.get("md5", "")) for k, v in scene_manifest.items()}
     for sid, record in overlays.items():
         if sid == "anchor" or not isinstance(record, dict) or not record.get("planned"):
             continue
-        photo = next((item for item in options.get(sid, []) if item.get("kind") == "photo" and item.get("full")), None)
+        photo = None
+        rejected_duplicates = []
+        for item in options.get(sid, []):
+            if item.get("kind") != "photo" or not item.get("full"):
+                continue
+            if item.get("full") == scene_results.get(sid, {}).get("url"):
+                rejected_duplicates.append("same_source_url")
+                continue
+            photo = item
+            break
         if photo:
-            record["photo_candidate"] = {"full": photo["full"], "src": photo.get("src", "remote"), "selected": False}
+            record["photo_candidate"] = {"full": photo["full"], "src": photo.get("src", "remote"), "selected": False, "role": "additional_context"}
             for variant in record.get("variants", []):
                 if variant.get("kind") == "photo":
                     variant.update({"status": "ready", "src": photo.get("src", "remote"), "full": photo["full"]})
             try:
                 data, width, height, _ = download_image(photo["full"], minimum=800)
                 entry = write_image(root, sid, data, target="overlay", source=photo.get("src", "remote"))
+                if entry.get("md5") and entry.get("md5") == scene_md5.get(sid):
+                    Path(root / entry["path"]).unlink(missing_ok=True)
+                    record["photo_candidate"]["status"] = "rejected_duplicate_of_scene"
+                    record["photo_candidate"]["error"] = "overlay image is identical to the scene image"
+                    record["photo"] = ""
+                    continue
                 record["photo"] = entry["path"]
                 record["photo_width"] = width
                 record["photo_height"] = height
