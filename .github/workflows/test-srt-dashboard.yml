@@ -76,6 +76,17 @@ jobs:
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: python -m assembler.fetch_job --root build --limit 8 --download
+      - name: Upload fetch diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: fetch-diagnostics
+          retention-days: 1
+          if-no-files-found: warn
+          path: |
+            build/fetch_report.json
+            build/search_options.json
+            build/images/manifest.json
       - name: Audit downloaded media
         run: python -m assembler.selfcheck --root build
       - uses: actions/upload-artifact@v4
