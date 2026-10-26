@@ -23,6 +23,10 @@ on:
         description: "Editorial topic anchors for search queries"
         required: false
         default: "Илон Маск Starlink Украина"
+      changes_path:
+        description: "Repository-relative review_changes.json saved from the dashboard"
+        required: false
+        default: ""
       approve:
         description: "Run final render after review"
         required: true
@@ -121,6 +125,16 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - uses: actions/download-artifact@v4
         with: {name: review, path: build}
+      # Решения человека входят в сборку здесь. Без этого шага рендер шёл по
+      # артефакту, который человек ещё не видел, а кнопка «Утвердить ролик»
+      # была украшением: approval.json не читал никто.
+      - name: Apply human review decisions
+        run: |
+          if [ -n "${{ inputs.changes_path }}" ] && [ -f "${{ inputs.changes_path }}" ]; then
+            python -m assembler.apply_changes --root build --changes "${{ inputs.changes_path }}"
+          else
+            echo "Файл правок не передан: рендер пойдёт только если approval.json уже утверждён"
+          fi
       - name: Self-check approved job
         run: python -m assembler.selfcheck --root build
       - name: Install FFmpeg
