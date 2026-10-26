@@ -15,7 +15,7 @@ _STOPWORDS = {
 }
 
 
-def build_search_query(text: str, used: set[str]) -> str:
+def build_search_query(text: str, used: set[str], topic: str = "") -> str:
     """Make a compact object-oriented query, never a narration slice.
 
     This is a conservative fallback for SRT-only runs. GEO2/curated storyboard
@@ -27,18 +27,19 @@ def build_search_query(text: str, used: set[str]) -> str:
         if len(word) >= 4 and word not in _STOPWORDS and word not in words:
             words.append(word)
     candidates = []
-    for width in (6, 5, 4, 3):
-        if len(words) >= width:
-            candidates.append("реальное фото " + " ".join(words[:width]))
+    anchor = " ".join(topic.split()[:4]).strip()
+    for start in range(max(1, len(words) - 1)):
+        if start + 1 < len(words):
+            candidates.append(f"{words[start]} {words[start + 1]} {anchor} реальное фото".strip())
     for query in candidates:
         if query not in used and " ".join(query.split()[:3]) not in {" ".join(x.split()[:3]) for x in used}:
             return query
     # Keep the query distinct without using a scene number or service wording.
     tail = next((w for w in words[3:] if w not in used), "событие")
-    return f"реальное фото {tail} {words[0] if words else 'новости'}"
+    return f"{anchor or 'реальное фото'} {tail} {words[0] if words else 'событие'}".strip()
 
 
-def build_scenes(cues: list[Cue], channel: str) -> dict:
+def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
     if not cues:
         return {"channel": channel, "scenes": []}
     total = cues[-1].end
@@ -59,17 +60,15 @@ def build_scenes(cues: list[Cue], channel: str) -> dict:
         start = 0.0 if index == 1 else scenes[-1]["start_sec"] + scenes[-1]["duration_sec"]
         duration = round(group[-1].end - group[0].start, 3)
         text = " ".join(c.text.strip() for c in group).strip()
-        # SRT alone does not contain enough editorial context to safely invent
-        # an object/location query. Leave it empty; the storyboard gate will
-        # require a curated query before any network fetch is allowed.
-        query = ""
+        query = build_search_query(text, used_queries, topic)
+        used_queries.add(query)
         scenes.append(
             {
                 "id": index,
                 "text": text,
                 "start_sec": round(start, 3),
                 "duration_sec": duration,
-                "visual_prompt": "Требуется предметный редакционный запрос",
+                "visual_prompt": f"Реальный новостной кадр по предмету: {query}",
                 "source": "press_photo",
                 "source_query": query,
             }
