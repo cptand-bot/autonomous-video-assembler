@@ -21,7 +21,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     scene_results: dict[str, dict] = {}
     manifest = root / "images" / "manifest.json"
     scenes = payload.get("scenes", [])
-    write_overlay_plan(root, scenes)
+    overlay_plan, overlay_stats = write_overlay_plan(root, scenes, payload.get("channel", ""))
     total_scenes = len(scenes)
     for position, scene in enumerate(scenes, start=1):
         sid = str(scene["id"])
@@ -117,7 +117,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     overlay_path.write_text(json.dumps(overlays, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     manifest_data = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
     failed = sum(1 for scene in scenes if not str(scene.get("source", "")).startswith("card:") and manifest_data.get(str(scene["id"]), {}).get("status") != "ok")
-    report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "failed": failed, "errors": errors, "scene_results": scene_results}
+    report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "failed": failed, "errors": errors, "scene_results": scene_results, "overlays": overlay_stats}
     (root / "fetch_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if download:
         write_static_review(root)
