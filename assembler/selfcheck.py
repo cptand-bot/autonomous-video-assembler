@@ -55,9 +55,23 @@ def check_job(root: Path) -> list[str]:
         for path, meta in banned_files(root, bans):
             errors.append(f"banned frame in build: {path} ({meta.get('reason', 'no reason recorded')})")
 
-    frames = [p for p in sorted((root / "images").glob("scene_*")) if p.suffix not in {".json", ".png"}]
-    for warning in quality_warnings(frames):
-        errors.append("quality: " + warning)
+    # Кадры сцен называются 001.jpg — маска "scene_*" не совпадала НИ С ОДНИМ
+    # файлом, поэтому проверка качества молча не проверяла ничего. Берём пути
+    # из манифеста: это единственный достоверный список кадров сборки.
+    frames = []
+    for item in manifest.values():
+        path = root / str(item.get("path", ""))
+        if path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} and path.exists():
+            frames.append(path)
+    # Качество — ПРЕДУПРЕЖДЕНИЕ, а не отказ: слабый кадр человек меняет на
+    # дашборде жёлтой карточкой, а падение джоба лишает его и дашборда тоже.
+    warnings = list(quality_warnings(sorted(frames)))
+    (root / "quality_report.json").write_text(
+        json.dumps({"checked": len(frames), "warnings": warnings}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    for warning in warnings:
+        print("WARNING quality: " + warning, flush=True)
     return errors
 
 

@@ -107,6 +107,7 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
     overlays = json.loads(overlay_path.read_text(encoding="utf-8")) if overlay_path.exists() else {}
     scene_manifest = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
     scene_md5 = {str(k): str(v.get("md5", "")) for k, v in scene_manifest.items()}
+    used_overlay_md5: set[str] = set()
     for sid, record in overlays.items():
         if sid == "anchor" or not isinstance(record, dict) or not record.get("planned"):
             continue
@@ -128,12 +129,23 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
             try:
                 data, width, height, _ = download_image(photo["full"], minimum=800)
                 entry = write_image(root, sid, data, target="overlay", source=photo.get("src", "remote"))
-                if entry.get("md5") and entry.get("md5") == scene_md5.get(sid):
+                # Дубль проверяется по ВСЕМ кадрам ролика и по уже взятым
+                # всплывашкам, а не только по базе своей сцены: кадр, который
+                # зритель видит полноэкранным на ЛЮБОЙ сцене, не может всплывать
+                # в рамке, и одна всплывашка не повторяется дважды.
+                digest = entry.get("md5", "")
+                clash = [s for s, m in scene_md5.items() if m and m == digest]
+                if digest and (clash or digest in used_overlay_md5):
                     Path(root / entry["path"]).unlink(missing_ok=True)
                     record["photo_candidate"]["status"] = "rejected_duplicate_of_scene"
-                    record["photo_candidate"]["error"] = "overlay image is identical to the scene image"
+                    record["photo_candidate"]["error"] = (
+                        f"overlay image is identical to the frame of scene(s) {', '.join(clash)}"
+                        if clash else "overlay image repeats another overlay"
+                    )
                     record["photo"] = ""
                     continue
+                if digest:
+                    used_overlay_md5.add(digest)
                 record["photo"] = entry["path"]
                 record["photo_width"] = width
                 record["photo_height"] = height
@@ -143,8 +155,21 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
                 record["photo_candidate"]["error"] = str(exc)
     overlay_path.write_text(json.dumps(overlays, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     payload["overlays"] = overlays
+    # Кадры вшиваются в страницу ОТНОСИТЕЛЬНЫМИ путями (images/001.jpg,
+    # videos/007.mp4), чтобы скачанный артефакт показывал их без сервера.
+    frames = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+    assets: dict[str, dict] = {}
+    for sid, item in frames.items():
+        path = str(item.get("path", ""))
+        asset: dict[str, object] = {"status": "failed" if item.get("status") in {"FAILED", "placeholder"} else "ok"}
+        if path.lower().endswith((".mp4", ".webm", ".mov", ".mkv")):
+            asset["video"] = path
+        elif path:
+            asset["image"] = path
+        assets[str(sid)] = asset
+    payload["assets"] = assets
     (root / "review.html").write_text(render_review(payload), encoding="utf-8")
-    manifest_data = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else {}
+    manifest_data = frames
     failed = sum(1 for scene in scenes if not str(scene.get("source", "")).startswith("card:") and manifest_data.get(str(scene["id"]), {}).get("status") != "ok")
     report = {"scenes": len(payload.get("scenes", [])), "with_options": sum(bool(v) for v in options.values()), "downloaded": downloaded, "failed": failed, "errors": errors, "scene_results": scene_results, "overlays": overlay_stats}
     (root / "fetch_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
