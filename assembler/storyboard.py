@@ -24,6 +24,7 @@ _NOT_A_SUBJECT = {
     "the", "new", "york", "times", "post", "news", "reuters", "bloomberg", "axios",
     "politico", "guardian", "cnn", "bbc", "риа", "тасс", "лента", "рбк", "интерфакс",
     "unian", "liga", "газета", "издание", "агентство", "телеканал", "корреспондент",
+    "telegram", "ютуб", "youtube", "пост", "публикация", "канал", "соцсеть",
 }
 
 
@@ -79,18 +80,33 @@ def build_search_query(text: str, used: set[str], topic: str = "") -> str:
     выдуманного кадра: пометку он закроет за десять секунд, а чужую картинку
     не заметит.
     """
+    names = scene_subjects(text)
+    subject = names[0] if names else ""
     words = []
     for raw in text.replace("—", " ").replace("–", " ").split():
         word = raw.strip(".,!?;:\"()[]{}«»").lower()
         if len(word) >= 4 and word not in _STOPWORDS and word not in words:
             words.append(word)
-    meaningful = [word for word in words if any(hint in word for hint in _OBJECT_HINTS)]
-    if not meaningful:
+    if not subject:
+        meaningful = [word for word in words if any(hint in word for hint in _OBJECT_HINTS)]
+        subject = meaningful[0] if meaningful else ""
+    if not subject:
         return ""
+    subject_stem = _stem(subject)
+    details = [
+        word for word in words
+        if _stem(word) != subject_stem
+        and word not in {name.lower() for name in names}
+        and word not in _NOT_A_SUBJECT
+    ]
+    # A query needs a physical/detail anchor. Generic modifiers are discarded;
+    # they are exactly what turned narration fragments into meaningless searches.
+    details = [word for word in details if len(word) >= 5]
     candidates = []
-    for start in range(max(1, len(words) - 1)):
-        if start + 1 < len(words) and words[start] in meaningful:
-            candidates.append(" ".join(words[start:start + 2]))
+    for size in (3, 2, 1):
+        for start in range(0, max(0, len(details) - size + 1)):
+            detail = " ".join(details[start:start + size])
+            candidates.append(f"{subject} {detail}")
     for query in candidates:
         if query not in used and " ".join(query.split()[:3]) not in {" ".join(x.split()[:3]) for x in used}:
             return query
@@ -147,7 +163,7 @@ def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
     for index, (group, text, (subject, inherited)) in enumerate(zip(groups, texts, assigned), start=1):
         start = 0.0 if index == 1 else scenes[-1]["start_sec"] + scenes[-1]["duration_sec"]
         duration = round(group[-1].end - group[0].start, 3)
-        query = build_search_query(text, used_queries, topic)
+        query = build_search_query(f"{text} {subject}" if subject else text, used_queries, topic)
         if not query and subject:
             query = build_search_query(subject, used_queries, topic)
         if query:
