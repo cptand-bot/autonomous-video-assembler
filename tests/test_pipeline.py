@@ -4,11 +4,19 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from assembler.overlays import plan_overlays
+from assembler.storyboard import build_search_query
 
 from assembler.pipeline import run_pipeline
 
 
 class PipelineTests(unittest.TestCase):
+    def test_query_builder_does_not_use_narration_prefix_or_topic_suffix(self):
+        narration = "правильные произносит их человек который находится в этой истории"
+        query = build_search_query(narration, set(), "Илон Маск Starlink Украина")
+        self.assertNotEqual(query.split()[:2], narration.split()[:2])
+        self.assertNotIn("реальное фото", query)
+        self.assertNotIn("Starlink Украина", query)
+
     def test_plans_text_overlays_with_spacing_and_complete_fields(self):
         # Сцена без НАЗВАННОГО предмета и без числа всплывашки не получает:
         # иначе в надпись уезжает пересказ озвучки, а это не иллюстрация.

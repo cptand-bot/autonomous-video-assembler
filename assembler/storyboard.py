@@ -15,7 +15,6 @@ _STOPWORDS = {
     "но", "а", "не", "ни", "же", "ли", "что"
 }
 
-
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?…])\s+")
 _WORD = re.compile(r"[А-ЯЁA-Za-zа-яё][А-ЯЁA-Za-zа-яё\-]{2,}")
 # Названия изданий и агрегаторов предметом съёмки НЕ являются и на экран не
@@ -58,6 +57,13 @@ def scene_subjects(text: str) -> list[str]:
             if (proper or latin) and word.lower() not in _STOPWORDS and word not in found:
                 found.append(word)
     return found
+_OBJECT_HINTS = (
+    "маск", "трамп", "starlink", "starshield", "украин", "киев", "пентагон",
+    "антенн", "терминал", "спутник", "ракета", "starship", "falcon", "фронт",
+    "карта", "оператор", "тариф", "интернет", "связ", "дрон", "аппарат", "база",
+    "генератор", "трансформатор", "подстанц", "кабел", "завод", "самолёт", "самолет",
+    "машин", "техник", "экран", "микрофон", "сцен", "дом", "здан", "порт", "аэродром",
+)
 
 
 def build_search_query(text: str, used: set[str], topic: str = "") -> str:
@@ -73,13 +79,22 @@ def build_search_query(text: str, used: set[str], topic: str = "") -> str:
     выдуманного кадра: пометку он закроет за десять секунд, а чужую картинку
     не заметит.
     """
-    taken = {_stem(x.split()[0]) for x in used if x}
-    for name in scene_subjects(text):
-        # Сравниваем по ОСНОВЕ: «Маск», «Маска», «Маску», «Маском» — один и тот
-        # же предмет, и пять запросов про него вернут один и тот же кадр.
-        if _stem(name) in taken:
-            continue
-        return f"{name} реальное фото"
+    words = []
+    for raw in text.replace("—", " ").replace("–", " ").split():
+        word = raw.strip(".,!?;:\"()[]{}«»").lower()
+        if len(word) >= 4 and word not in _STOPWORDS and word not in words:
+            words.append(word)
+    meaningful = [word for word in words if any(hint in word for hint in _OBJECT_HINTS)]
+    if not meaningful:
+        return ""
+    candidates = []
+    for start in range(max(1, len(words) - 1)):
+        if start + 1 < len(words) and words[start] in meaningful:
+            candidates.append(" ".join(words[start:start + 2]))
+    for query in candidates:
+        if query not in used and " ".join(query.split()[:3]) not in {" ".join(x.split()[:3]) for x in used}:
+            return query
+    # Keep the query distinct without using a scene number or service wording.
     return ""
 
 
@@ -128,10 +143,15 @@ def build_scenes(cues: list[Cue], channel: str, topic: str = "") -> dict:
             used_count[_stem(chosen)] = used_count.get(_stem(chosen), 0) + 1
 
     scenes = []
+    used_queries: set[str] = set()
     for index, (group, text, (subject, inherited)) in enumerate(zip(groups, texts, assigned), start=1):
         start = 0.0 if index == 1 else scenes[-1]["start_sec"] + scenes[-1]["duration_sec"]
         duration = round(group[-1].end - group[0].start, 3)
-        query = f"{subject} реальное фото" if subject else ""
+        query = build_search_query(text, used_queries, topic)
+        if not query and subject:
+            query = build_search_query(subject, used_queries, topic)
+        if query:
+            used_queries.add(query)
         scene = {
             "id": index,
             "text": text,
