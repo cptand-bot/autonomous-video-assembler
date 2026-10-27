@@ -103,10 +103,10 @@ def build_search_query(text: str, used: set[str], topic: str = "") -> str:
     # they are exactly what turned narration fragments into meaningless searches.
     details = [word for word in details if len(word) >= 5]
     candidates = []
-    for size in (3, 2, 1):
+    for size in (1,):
         for start in range(0, max(0, len(details) - size + 1)):
             detail = " ".join(details[start:start + size])
-            candidates.append(f"{detail} {subject} снимок 2026")
+            candidates.append(f"{detail} снимок {subject} 2026")
     for query in candidates:
         if query not in used and " ".join(query.split()[:3]) not in {" ".join(x.split()[:3]) for x in used}:
             return query
