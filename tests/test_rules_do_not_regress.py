@@ -170,7 +170,9 @@ class HonestInsteadOfInvented(unittest.TestCase):
         self.assertEqual(build_search_query("Это общая фраза без имён и предметов.", set()), "")
 
     def test_scene_with_a_named_subject_gets_it(self):
-        self.assertEqual(build_search_query("Вчера Starlink отключили.", set()), "Starlink реальное фото")
+        query = build_search_query("Вчера Starlink отключили.", set())
+        self.assertIn("starlink", query.lower())
+        self.assertNotIn("реальное фото", query.lower())
 
     def test_media_outlet_is_not_a_subject(self):
         # Источники и агрегаторы на экран не попадают никогда; как запрос они
