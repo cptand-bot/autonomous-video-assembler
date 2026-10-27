@@ -99,7 +99,7 @@ document.querySelector('#download').onclick=()=>{{const data=changes();download(
 document.querySelector('#approve').onclick=async()=>{{if(Object.entries(state).some(([k,x])=>k!=='_overlays'&&k!=='_approved'&&x&&x.need)){{alert('Сначала закройте жёлтые карточки');return}}state._approved=true;save();try{{await api('/approve',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{approved:true}})}});alert('Ролик утверждён для render')}}catch(e){{alert('Ролик утверждён. Сервера нет — нажмите «💾 Скачать правки» и отдайте review_changes.json сборке.')}}}};render();refreshState();
 grid.addEventListener('input',e=>{{if(e.target.dataset.f==='search-q'){{const id=e.target.closest('.card').dataset.id;state[id]=state[id]||{{}};state[id].search_q=e.target.value;state[id].note=e.target.value}}}});
 grid.addEventListener('click',e=>{{const b=e.target.closest('[data-a=voice]');if(!b)return;const input=b.parentElement.querySelector('[data-f=search-q]');const R=window.SpeechRecognition||window.webkitSpeechRecognition;if(!R){{alert('Голосовой ввод не поддерживается этим браузером');return}}const r=new R();r.lang='ru-RU';r.onresult=ev=>{{input.value=ev.results[0][0].transcript;input.dispatchEvent(new Event('input',{{bubbles:true}}))}};r.start()}});
-window._poll=setInterval(refreshState,2500);
+window._poll=setInterval(refreshState,2500);grid.addEventListener('focusin',e=>{{if(e.target.matches('input,textarea,select')&&window._poll){{clearInterval(window._poll);window._poll=null}}}});grid.addEventListener('focusout',e=>{{if(e.target.matches('input,textarea,select')&&!window._poll)window._poll=setInterval(refreshState,2500)}});
 </script></body></html>"""
 
 
