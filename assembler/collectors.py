@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import time
 from html import unescape
 from urllib.parse import quote, urlencode
@@ -11,10 +12,26 @@ from urllib.request import Request, urlopen
 from .guards import filter_candidates
 
 
+def _read_url(request: Request, timeout: int = 20) -> bytes:
+    """Read HTTP through Windows curl when Python sockets are restricted."""
+    headers = []
+    for key, value in request.header_items():
+        headers.extend(["-H", f"{key}: {value}"])
+    try:
+        result = subprocess.run(
+            ["curl.exe", "-L", "--fail", "--silent", "--show-error", "--max-time", str(timeout), *headers, request.full_url],
+            capture_output=True,
+            check=True,
+        )
+        return result.stdout
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        with urlopen(request, timeout=timeout) as response:
+            return response.read()
+
+
 def _get_json(url: str, headers: dict[str, str] | None = None) -> dict:
     request = Request(url, headers={"User-Agent": "autonomous-video-assembler/0.1", **(headers or {})})
-    with urlopen(request, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return json.loads(_read_url(request).decode("utf-8"))
 
 
 def search_openverse(query: str, limit: int = 8) -> list[dict]:
@@ -82,7 +99,7 @@ def search_flickr(query: str, limit: int = 8) -> list[dict]:
 
 def search_web(query: str, limit: int = 8) -> list[dict]:
     """Last-resort discovery only; results are pages, never treated as CC media."""
-    data = urlopen(Request("https://html.duckduckgo.com/html/?" + urlencode({"q": query}), headers={"User-Agent": "autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
+    data = _read_url(Request("https://html.duckduckgo.com/html/?" + urlencode({"q": query}), headers={"User-Agent": "autonomous-video-assembler/0.1"})).decode("utf-8", errors="replace")
     results = []
     for match in re.finditer(r'class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', data, re.I | re.S):
         url = unescape(match.group(1)); title = re.sub(r"<[^>]+>", "", unescape(match.group(2))).strip()
@@ -97,7 +114,7 @@ def search_yandex(query: str, limit: int = 8) -> list[dict]:
     try:
         url = "https://yandex.com/images/search?" + urlencode({"text": query, "isize": "large"})
         req = Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) news-video-review", "Accept-Language": "en,ru;q=0.9"})
-        data = urlopen(req, timeout=20).read().decode("utf-8", errors="ignore")
+        data = _read_url(req).decode("utf-8", errors="ignore")
         out = []
         for match in re.finditer(r'img_href&quot;:&quot;(https?://[^&]+)&quot;', data):
             out.append({"full": unescape(match.group(1)), "kind": "photo", "src": "yandex"})
@@ -113,7 +130,7 @@ def search_yandex(query: str, limit: int = 8) -> list[dict]:
 def search_google(query: str, limit: int = 8) -> list[dict]:
     """Second pass: return direct image files from Google Images only."""
     url = "https://www.google.com/search?" + urlencode({"q": query, "tbm": "isch", "num": limit})
-    data = urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"}), timeout=20).read().decode("utf-8", errors="replace")
+    data = _read_url(Request(url, headers={"User-Agent": "Mozilla/5.0 autonomous-video-assembler/0.1"})).decode("utf-8", errors="replace")
     return _direct_image_results(data, "google", limit)
 
 
@@ -121,11 +138,11 @@ def search_ddg_images(query: str, limit: int = 8) -> list[dict]:
     """Second image pass: DuckDuckGo image JSON with a fresh vqd token."""
     try:
         headers = {"Referer": "https://duckduckgo.com/", "Accept": "application/json, text/javascript, */*; q=0.01"}
-        page = urlopen(Request("https://duckduckgo.com/?" + urlencode({"q": query, "iax": "images", "ia": "images"}), headers={"User-Agent": "Mozilla/5.0", **headers}), timeout=20).read().decode("utf-8", errors="ignore")
+        page = _read_url(Request("https://duckduckgo.com/?" + urlencode({"q": query, "iax": "images", "ia": "images"}), headers={"User-Agent": "Mozilla/5.0", **headers})).decode("utf-8", errors="ignore")
         token = re.search(r'vqd=["\']?([\d-]+)', page) or re.search(r'vqd=([\d-]+)&', page)
         if not token: return []
         url = "https://duckduckgo.com/i.js?" + urlencode({"l": "us-en", "o": "json", "q": query, "vqd": token.group(1), "f": ",,,,,", "p": "1"})
-        data = json.loads(urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0", **headers}), timeout=20).read().decode("utf-8"))
+        data = json.loads(_read_url(Request(url, headers={"User-Agent": "Mozilla/5.0", **headers})).decode("utf-8"))
         return [{"full": x["image"], "thumb": x.get("thumbnail"), "w": x.get("width", 0), "h": x.get("height", 0), "kind": "photo", "src": "ddg"} for x in data.get("results", []) if x.get("image")][:limit]
     except Exception as exc:
         raise RuntimeError(f"ddg недоступен: {type(exc).__name__}: {exc}") from exc

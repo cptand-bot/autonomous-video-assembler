@@ -119,6 +119,11 @@ def fetch_job(root: Path, limit: int = 8, download: bool = False) -> dict:
             if item.get("full") == scene_results.get(sid, {}).get("url"):
                 rejected_duplicates.append("same_source_url")
                 continue
+            overlay_query = str(record.get("query", "")).strip().lower()
+            scene_query = str(next((s.get("source_query", "") for s in scenes if str(s.get("id")) == str(sid)), "")).strip().lower()
+            if overlay_query and overlay_query in scene_query:
+                rejected_duplicates.append("same_subject_as_scene")
+                continue
             photo = item
             break
         if photo:

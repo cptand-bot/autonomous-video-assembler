@@ -14,6 +14,20 @@ class MediaError(ValueError):
     pass
 
 
+def _download_bytes(request: Request, timeout: int) -> bytes:
+    headers = []
+    for key, value in request.header_items():
+        headers.extend(["-H", f"{key}: {value}"])
+    try:
+        result = subprocess.run(["curl.exe", "-L", "--fail", "--silent", "--show-error", "--max-time", str(timeout), *headers, request.full_url], capture_output=True, check=True)
+        data = result.stdout
+        return data.encode() if isinstance(data, str) else data
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        with urlopen(request, timeout=timeout) as response:
+            data = response.read()
+            return data.encode() if isinstance(data, str) else data
+
+
 def add_manifest_metadata(root: Path, sid: str, metadata: dict) -> None:
     path = root / "images" / "manifest.json"
     if not path.exists():
@@ -45,8 +59,7 @@ def normalize_image(data: bytes, minimum: int = 200) -> tuple[bytes, int, int, s
 
 def download_image(url: str, timeout: int = 30, minimum: int = 200) -> tuple[bytes, int, int, str]:
     request = Request(url, headers={"User-Agent": "autonomous-video-assembler/0.1"})
-    with urlopen(request, timeout=timeout) as response:
-        return normalize_image(response.read(), minimum=minimum)
+    return normalize_image(_download_bytes(request, timeout), minimum=minimum)
 
 
 def write_image(root: Path, sid: str, data: bytes, target: str = "scene", source: str = "") -> dict:
@@ -69,8 +82,7 @@ def download_video(url: str, root: Path, sid: str, source: str = "remote") -> di
     request = Request(url, headers={"User-Agent": "autonomous-video-assembler/0.1"})
     folder = root / "videos"; folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{int(sid):03d}.mp4"
-    with urlopen(request, timeout=60) as response:
-        data = response.read()
+    data = _download_bytes(request, 60)
     path.write_bytes(data)
     digest = hashlib.md5(data).hexdigest()
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=width,height", "-of", "json", str(path)], capture_output=True, text=True)
